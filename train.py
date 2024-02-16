@@ -39,10 +39,16 @@ def train_model(model: VisionRobotNet,
                 device: torch.device,
                 phases: List[str],
                 num_epochs: int,
-                lr: float) -> None:
+                lr: float,
+                weights_dir: str) -> None:
     criterion = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     rmse = RMSELoss()
+
+    best_acc = float('inf')
+    save_path_best = os.path.join(weights_dir, "best_params.pth")
+    save_path_last = os.path.join(weights_dir, "last_params.pth")
+    os.makedirs(weights_dir, exist_ok=True)
 
     for i in range(num_epochs):
         print(f"Epoch {i+1}/{num_epochs}")
@@ -83,8 +89,13 @@ def train_model(model: VisionRobotNet,
             acc_phase[phase] = avg_acc_epoch
             WRITER.add_scalar(f"MSE/{phase}", avg_loss_epoch.item(), i)
             WRITER.add_scalar(f"RMSE/{phase}", avg_acc_epoch.item(), i)
+
+            if phase == "test" and avg_acc_epoch.item() < best_acc:
+                best_acc = avg_acc_epoch.item()
+                torch.save(model.state_dict(), save_path_best)
         print(f"Train Loss: {loss_phase["train"].item()}\t \
               Test Loss: {loss_phase["test"].item()} Test RMSE: {acc_phase["test"].item()}")
+    torch.save(model.state_dict(), save_path_last)
 
 
 def train(args: argparse.Namespace):
@@ -108,6 +119,13 @@ def train(args: argparse.Namespace):
     batch_size = int(args.batch_size)
     lr = float(args.lr)
     num_epochs = int(args.num_epochs)
+
+    hparams = {
+        'batch_size': batch_size,
+        'lr': lr,
+        'num_epochs': num_epochs
+    }
+    WRITER.add_hparams(hparams, {})
 
     data_dir = "data"
     sets = ["train", "test"]
@@ -134,7 +152,7 @@ def train(args: argparse.Namespace):
     model.to(device)
 
     train_model(model, data_loaders, device, sets,
-                num_epochs=num_epochs, lr=lr)
+                num_epochs=num_epochs, lr=lr, weights_dir="weights")
     WRITER.flush()
 
 
