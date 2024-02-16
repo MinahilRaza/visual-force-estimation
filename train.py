@@ -5,6 +5,7 @@ import torch.nn as nn
 import torchvision
 from torchvision import transforms
 from tqdm import tqdm
+import argparse
 
 from torch.utils.data import DataLoader
 
@@ -12,15 +13,41 @@ from util import load_dataset
 from dataset import VisionRobotDataset
 from transforms import CropBottom
 from models import VisionRobotNet
+from loss import RMSELoss
+
+from torch.utils.tensorboard import SummaryWriter
+WRITER = SummaryWriter()
+layout = {
+    "Training Plots": {
+        "MSE": ["Multiline", ["MSE/train", "MSE/test"]],
+        "RMSE": ["Multiline", ["RMSE/train", "RMSE/test"]],
+    },
+}
+WRITER.add_custom_scalars(layout)
 
 
-def train_model(model: VisionRobotNet, data_loaders: dict[DataLoader], device: torch.device, phases: List[str], num_epochs: int, lr: float):
+def parse_cmd_line() -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--batch_size", required=True)
+    parser.add_argument("--lr", required=True)
+    parser.add_argument("--num_epochs", required=True)
+    return parser.parse_args()
+
+
+def train_model(model: VisionRobotNet,
+                data_loaders: dict[DataLoader],
+                device: torch.device,
+                phases: List[str],
+                num_epochs: int,
+                lr: float) -> None:
     criterion = nn.MSELoss().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    rmse = RMSELoss()
 
     for i in range(num_epochs):
-        loss_phase = {}
         print(f"Epoch {i+1}/{num_epochs}")
+        loss_phase = {}
+        acc_phase = {}
         for phase in phases:
             if phase == "train":
                 model.train()
@@ -28,6 +55,8 @@ def train_model(model: VisionRobotNet, data_loaders: dict[DataLoader], device: t
                 model.eval()
 
             total_loss_epoch = torch.zeros(
+                1, requires_grad=False, device=device)
+            total_acc_epoch = torch.zeros(
                 1, requires_grad=False, device=device)
 
             with torch.set_grad_enabled(phase == "train"):
@@ -39,7 +68,9 @@ def train_model(model: VisionRobotNet, data_loaders: dict[DataLoader], device: t
 
                     out = model(img_left, img_right, features)
                     loss = criterion(out, target)
+                    acc = rmse(out, target)
                     total_loss_epoch += loss
+                    total_acc_epoch += acc
 
                     if phase == "train":
                         optimizer.zero_grad()
@@ -47,12 +78,16 @@ def train_model(model: VisionRobotNet, data_loaders: dict[DataLoader], device: t
                         optimizer.step()
 
             avg_loss_epoch = total_loss_epoch / len(data_loaders[phase])
+            avg_acc_epoch = total_acc_epoch / len(data_loaders[phase])
             loss_phase[phase] = avg_loss_epoch
+            acc_phase[phase] = avg_acc_epoch
+            WRITER.add_scalar(f"MSE/{phase}", avg_loss_epoch.item(), i)
+            WRITER.add_scalar(f"RMSE/{phase}", avg_acc_epoch.item(), i)
         print(f"Train Loss: {loss_phase["train"].item()}\t \
-              Test Loss: {loss_phase["test"].item()}")
+              Test Loss: {loss_phase["test"].item()} Test RMSE: {acc_phase["test"].item()}")
 
 
-def train():
+def train(args: argparse.Namespace):
 
     train_transform = transforms.Compose([
         transforms.RandomResizedCrop((224, 224)),
@@ -68,9 +103,11 @@ def train():
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
     data_transforms = {"train": train_transform, "test": test_transform}
-    run_nums = {"train": [2, 1], "test": [7]}
+    run_nums = {"train": [1, 2, 3], "test": [7]}
 
-    batch_size = 8
+    batch_size = int(args.batch_size)
+    lr = float(args.lr)
+    num_epochs = int(args.num_epochs)
 
     data_dir = "data"
     sets = ["train", "test"]
@@ -96,8 +133,11 @@ def train():
                            dropout_rate=0.2)
     model.to(device)
 
-    train_model(model, data_loaders, device, sets, num_epochs=10, lr=0.0001)
+    train_model(model, data_loaders, device, sets,
+                num_epochs=num_epochs, lr=lr)
+    WRITER.flush()
 
 
 if __name__ == "__main__":
-    train()
+    args = parse_cmd_line()
+    train(args)
