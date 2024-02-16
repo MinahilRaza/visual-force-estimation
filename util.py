@@ -79,6 +79,7 @@ def load_dataset(path: str, run_nums: Optional[List[int]] = None):
                        for f in os.listdir(roll_out_dir)]
     else:
         assert isinstance(run_nums, list)
+        assert len(run_nums) > 0
         excel_files = [
             f"{roll_out_dir}/dec6_force_no_TA_lastP_randomPosHeight_cs100_run{n}.xlsx" for n in run_nums]
 
