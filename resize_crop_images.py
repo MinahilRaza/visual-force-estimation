@@ -6,7 +6,8 @@ NEW_SIZE = 256
 
 
 def parse_cmd_line() -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Recursively crops every .png image provided in the directory")
     parser.add_argument("-d", "--directory", required=True)
     return parser.parse_args()
 
