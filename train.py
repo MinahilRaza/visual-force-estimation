@@ -9,7 +9,7 @@ import argparse
 
 from torch.utils.data import DataLoader
 
-from util import load_dataset
+from util import load_dataset, apply_scaling_to_datasets
 from dataset import VisionRobotDataset
 from transforms import CropBottom
 from models import VisionRobotNet
@@ -42,7 +42,7 @@ def train_model(model: VisionRobotNet,
                 lr: float,
                 weights_dir: str) -> None:
     criterion = nn.MSELoss().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
     rmse = RMSELoss()
 
     best_acc = float('inf')
@@ -132,7 +132,7 @@ def train(args: argparse.Namespace):
 
     data_dir = "data"
     sets = ["train", "test"]
-    data_loaders = {}
+    data_loaders: dict[DataLoader] = {}
 
     for s in sets:
         path = os.path.join(data_dir, s)
@@ -142,6 +142,9 @@ def train(args: argparse.Namespace):
         print(f"Loaded Dataset {s} with {len(dataset)} samples!")
         data_loaders[s] = DataLoader(dataset, batch_size=batch_size)
 
+    apply_scaling_to_datasets(
+        data_loaders["train"].dataset, data_loaders["test"].dataset)
+
     if torch.cuda.is_available():
         device = torch.device("cuda")
     else:
@@ -150,7 +153,7 @@ def train(args: argparse.Namespace):
     print(f"[INFO] Using Device: {device}")
 
     model = VisionRobotNet(num_image_features=30,
-                           num_robot_features=38,
+                           num_robot_features=41,
                            dropout_rate=0.2)
     model.to(device)
 

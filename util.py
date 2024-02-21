@@ -3,6 +3,11 @@ from typing import List, Optional, Tuple
 import pandas as pd
 import numpy as np
 
+from sklearn.preprocessing import StandardScaler
+
+import torch
+from torch.utils.data import Dataset
+
 FEATURE_COLUMS = ['PSM1_joint_1', 'PSM1_joint_2', 'PSM1_joint_3', 'PSM1_joint_4',
                   'PSM1_joint_5', 'PSM1_joint_6', 'PSM1_jaw_angle', 'PSM1_ee_x',
                   'PSM1_ee_y', 'PSM1_ee_z', 'PSM1_Orientation_Matrix_[1,1]',
@@ -19,6 +24,10 @@ FEATURE_COLUMS = ['PSM1_joint_1', 'PSM1_joint_2', 'PSM1_joint_3', 'PSM1_joint_4'
                   'PSM2_Orientation_Matrix_[3,2]', 'PSM2_Orientation_Matrix_[3,3]']
 
 IMAGE_COLUMS = ['ZED Camera Left', 'ZED Camera Right']
+
+TIME_COLUMN = ["Time (Seconds)"]
+
+VELOCITY_COLUMNS = [f'PSM1_ee_v_{axis}' for axis in ['x', 'y', 'z']]
 
 TARGET_COLUMNS = ['Force_x_smooth', 'Force_y_smooth', 'Force_z_smooth']
 
@@ -46,10 +55,12 @@ def load_data(excel_file_names: List[str]) -> Tuple[np.ndarray, np.ndarray, List
 
     for excel_file_name in excel_file_names:
         print(f"Loading data: {excel_file_name}")
-        relevant_cols = FEATURE_COLUMS + IMAGE_COLUMS + TARGET_COLUMNS
+        relevant_cols = FEATURE_COLUMS + IMAGE_COLUMS + TARGET_COLUMNS + TIME_COLUMN
         excel_df = pd.read_excel(excel_file_name, usecols=relevant_cols)
+        excel_df = calculate_velocity(excel_df)
+        excel_df = excel_df.drop(TIME_COLUMN, axis=1)
 
-        X = excel_df[FEATURE_COLUMS].to_numpy()
+        X = excel_df[FEATURE_COLUMS + VELOCITY_COLUMNS].to_numpy()
         y = excel_df[TARGET_COLUMNS].to_numpy()
         img_left_paths = get_img_paths("Left", excel_df)
         img_right_paths = get_img_paths("Right", excel_df)
@@ -63,6 +74,16 @@ def load_data(excel_file_names: List[str]) -> Tuple[np.ndarray, np.ndarray, List
     all_y = np.concatenate(all_y, axis=0)
 
     return all_X, all_y, all_img_left_paths, all_img_right_paths
+
+
+def calculate_velocity(df: pd.DataFrame) -> pd.DataFrame:
+    for axis in ['x', 'y', 'z']:
+        position_col = f'PSM1_ee_{axis}'
+        velocity_col = f'PSM1_ee_v_{axis}'
+        df[velocity_col] = df[position_col].diff() / df["Time (Seconds)"].diff()
+        assert len(df[position_col]) == len(df[velocity_col])
+
+    return df
 
 
 def load_dataset(path: str, run_nums: Optional[List[int]] = None):
@@ -86,11 +107,22 @@ def load_dataset(path: str, run_nums: Optional[List[int]] = None):
     return load_data(excel_files)
 
 
+def apply_scaling_to_datasets(train_dataset: Dataset, test_dataset: Dataset) -> None:
+    scaler = StandardScaler()
+
+    scaler.fit(train_dataset.robot_features.numpy())
+
+    train_dataset.robot_features = torch.from_numpy(
+        scaler.transform(train_dataset.robot_features.numpy())).float()
+    test_dataset.robot_features = torch.from_numpy(
+        scaler.transform(test_dataset.robot_features.numpy())).float()
+
+
 if __name__ == "__main__":
     all_X, all_y, all_img_left_paths, all_img_right_paths = load_dataset(
         path="data/train", run_nums=[1, 2])
 
-    assert all_X.shape == (2549, 38)
+    assert all_X.shape == (2549, 41)
     assert all_y.shape == (2549, 3)
 
     assert len(all_img_left_paths) == 2549
