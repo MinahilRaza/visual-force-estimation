@@ -96,8 +96,8 @@ def train_model(model: VisionRobotNet,
                 torch.save(model.state_dict(), save_path_best)
                 print(f"Saved new best model with \
                       RMSE:{round(avg_acc_epoch.item(), 4)}")
-        print(f"Train Loss: {loss_phase["train"].item()}\t \
-              Test Loss: {loss_phase["test"].item()} Test RMSE: {acc_phase["test"].item()}")
+        print(f"Train Loss: {loss_phase['train'].item()}\t \
+              Test Loss: {loss_phase['test'].item()} Test RMSE: {acc_phase['test'].item()}")
     torch.save(model.state_dict(), save_path_last)
 
 
