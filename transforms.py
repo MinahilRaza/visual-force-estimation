@@ -21,7 +21,7 @@ class CropBottom(torch.nn.Module):
             assert len(output_size) == 2
             self.output_size = output_size
 
-    def forward(self, img: Union[Image, torch.Tensor]):
+    def forward(self, img: Union[Image.Image, torch.Tensor]):
         """
         Args:
             img (PIL Image or Tensor): Image to be cropped.
