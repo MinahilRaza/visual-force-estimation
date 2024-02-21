@@ -93,6 +93,8 @@ def train_model(model: VisionRobotNet,
             if phase == "test" and avg_acc_epoch.item() < best_acc:
                 best_acc = avg_acc_epoch.item()
                 torch.save(model.state_dict(), save_path_best)
+                print(f"Saved new best model with \
+                      RMSE:{round(avg_acc_epoch.item(), 4)}")
         print(f"Train Loss: {loss_phase["train"].item()}\t \
               Test Loss: {loss_phase["test"].item()} Test RMSE: {acc_phase["test"].item()}")
     torch.save(model.state_dict(), save_path_last)
@@ -113,6 +115,7 @@ def train(args: argparse.Namespace):
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
+
     data_transforms = {"train": train_transform, "test": test_transform}
     run_nums = {"train": [1, 2, 3], "test": [7]}
 

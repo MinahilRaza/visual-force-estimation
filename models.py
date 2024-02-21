@@ -8,7 +8,7 @@ class VisionRobotNet(nn.Module):
     def __init__(self,
                  num_image_features: int,
                  num_robot_features: int,
-                 dropout_rate: float) -> None:
+                 dropout_rate: float = 0.2) -> None:
         super().__init__()
         self.res_net_left = self._init_res_net(num_image_features)
         self.res_net_right = self._init_res_net(num_image_features)
@@ -62,3 +62,7 @@ class VisionRobotNet(nn.Module):
         x = self.relu(x)
         x = self.dropout(x)
         return x
+
+    @property
+    def device(self) -> torch.device:
+        return self.fc1.weight.device
