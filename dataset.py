@@ -25,8 +25,8 @@ class VisionRobotDataset(Dataset):
                  transforms: Optional[transforms.Compose] = None) -> None:
         self.num_samples, self.num_robot_features = robot_features.shape
         assert force_targets.shape[0] == self.num_samples, \
-            f"force_labels size: {
-                force_targets.shape} does not match samples nr: {self.num_samples}"
+            f"force_labels size: \
+            {force_targets.shape} does not match samples nr: {self.num_samples}"
         assert len(img_left_paths) == self.num_samples
         assert len(img_right_paths) == self.num_samples
 
