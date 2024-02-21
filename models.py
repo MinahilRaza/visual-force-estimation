@@ -66,3 +66,14 @@ class VisionRobotNet(nn.Module):
     @property
     def device(self) -> torch.device:
         return self.fc1.weight.device
+
+
+if __name__ == "__main__":
+    img_r = torch.randn((8, 3, 256, 256))
+    img_l = torch.randn((8, 3, 256, 256))
+    feat = torch.randn((8, 41))
+
+    model = VisionRobotNet(30, 41, dropout_rate=0.2)
+    out = model(img_r, img_l, feat)
+
+    assert not torch.isnan(out).any()
