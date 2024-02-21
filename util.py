@@ -82,7 +82,10 @@ def calculate_velocity(df: pd.DataFrame) -> pd.DataFrame:
         position_col = f'PSM1_ee_{axis}'
         velocity_col = f'PSM1_ee_v_{axis}'
         df[velocity_col] = df[position_col].diff() / df["Time (Seconds)"].diff()
+        # first element is nan, as the velocity cannot be computed
+        df.loc[df.index[0], velocity_col] = 0
         assert len(df[position_col]) == len(df[velocity_col])
+        assert df[velocity_col].isnull().sum() == 0
 
     return df
 
