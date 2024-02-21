@@ -31,6 +31,8 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("--batch_size", required=True)
     parser.add_argument("--lr", required=True)
     parser.add_argument("--num_epochs", required=True)
+    parser.add_argument('--train_runs', nargs='+',
+                        type=int, help='A list of the run numbers of the rollouts that should be used for training', required=True)
     return parser.parse_args()
 
 
@@ -118,7 +120,7 @@ def train(args: argparse.Namespace):
     ])
 
     data_transforms = {"train": train_transform, "test": test_transform}
-    run_nums = {"train": [1, 2, 3], "test": [7]}
+    run_nums = {"train": args.train_runs, "test": [7]}
 
     batch_size = int(args.batch_size)
     lr = float(args.lr)
