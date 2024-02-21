@@ -2,6 +2,7 @@ import os
 from typing import List, Optional, Tuple
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
 from sklearn.preprocessing import StandardScaler
 
@@ -116,6 +117,29 @@ def apply_scaling_to_datasets(train_dataset: Dataset, test_dataset: Dataset) -> 
         scaler.transform(train_dataset.robot_features.numpy())).float()
     test_dataset.robot_features = torch.from_numpy(
         scaler.transform(test_dataset.robot_features.numpy())).float()
+
+
+def create_weights_path(lr: float, num_epochs: int, base_dir: str = "weights") -> str:
+    """
+    Creates a directory path for saving weights with a unique run count and specified parameters.
+
+    """
+    base_path = Path(base_dir)
+    if not base_path.exists():
+        base_path.mkdir(parents=True, exist_ok=True)
+        highest_count = 0
+    else:
+        counts = []
+        for dir_name in os.listdir(base_dir):
+            if dir_name.startswith("run_"):
+                parts = dir_name.split("_")
+                if len(parts) >= 2 and parts[1].isdigit():
+                    counts.append(int(parts[1]))
+        highest_count = max(counts) + 1 if counts else 1
+
+    new_dir_path = base_path / \
+        f"run_{highest_count}_lr_{lr}_epochs_{num_epochs}"
+    return str(new_dir_path)
 
 
 if __name__ == "__main__":

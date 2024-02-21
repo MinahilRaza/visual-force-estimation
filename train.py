@@ -9,7 +9,7 @@ import argparse
 
 from torch.utils.data import DataLoader
 
-from util import load_dataset, apply_scaling_to_datasets
+from util import load_dataset, apply_scaling_to_datasets, create_weights_path
 from dataset import VisionRobotDataset
 from transforms import CropBottom
 from models import VisionRobotNet
@@ -73,6 +73,7 @@ def train_model(model: VisionRobotNet,
                     target = batch["target"].to(device)
 
                     out = model(img_left, img_right, features)
+
                     loss = criterion(out, target)
                     acc = rmse(out, target)
                     total_loss_epoch += loss
@@ -157,8 +158,9 @@ def train(args: argparse.Namespace):
                            dropout_rate=0.2)
     model.to(device)
 
+    weights_dir = create_weights_path(lr, num_epochs)
     train_model(model, data_loaders, device, sets,
-                num_epochs=num_epochs, lr=lr, weights_dir="weights")
+                num_epochs=num_epochs, lr=lr, weights_dir=weights_dir)
     WRITER.flush()
 
 
