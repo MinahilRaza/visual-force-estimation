@@ -46,8 +46,10 @@ class VisionRobotDataset(Dataset):
         img_left = Image.open(img_left_path)
         img_right = Image.open(img_right_path)
 
-        assert img_left.size[0] == img_left.size[1] == 256
-        assert img_right.size[0] == img_right.size[1] == 256
+        assert img_left.size[0] == img_left.size[1] == 256, f"{
+            img_left.size=}, {img_left_path=}"
+        assert img_right.size[0] == img_right.size[1] == 256, f"{
+            img_left.size=}, {img_right.size=}"
 
         if self.transforms:
             img_left = self.transforms(img_left)
