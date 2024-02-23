@@ -28,7 +28,8 @@ IMAGE_COLUMS = ['ZED Camera Left', 'ZED Camera Right']
 
 TIME_COLUMN = ["Time (Seconds)"]
 
-VELOCITY_COLUMNS = [f'PSM1_ee_v_{axis}' for axis in ['x', 'y', 'z']]
+VELOCITY_COLUMNS = [f'PSM{nr}_ee_v_{axis}'
+                    for axis in ['x', 'y', 'z'] for nr in [1, 2]]
 
 TARGET_COLUMNS = ['Force_x_smooth', 'Force_y_smooth', 'Force_z_smooth']
 
@@ -79,13 +80,15 @@ def load_data(excel_file_names: List[str]) -> Tuple[np.ndarray, np.ndarray, List
 
 def calculate_velocity(df: pd.DataFrame) -> pd.DataFrame:
     for axis in ['x', 'y', 'z']:
-        position_col = f'PSM1_ee_{axis}'
-        velocity_col = f'PSM1_ee_v_{axis}'
-        df[velocity_col] = df[position_col].diff() / df["Time (Seconds)"].diff()
-        # first element is nan, as the velocity cannot be computed
-        df.loc[df.index[0], velocity_col] = 0
-        assert len(df[position_col]) == len(df[velocity_col])
-        assert df[velocity_col].isnull().sum() == 0
+        for nr in [1, 2]:
+            position_col = f'PSM{nr}_ee_{axis}'
+            velocity_col = f'PSM{nr}_ee_v_{axis}'
+            df[velocity_col] = df[position_col].diff() / \
+                df["Time (Seconds)"].diff()
+            # first element is nan, as the velocity cannot be computed
+            df.loc[df.index[0], velocity_col] = 0
+            assert len(df[position_col]) == len(df[velocity_col])
+            assert df[velocity_col].isnull().sum() == 0
 
     return df
 
@@ -149,7 +152,7 @@ if __name__ == "__main__":
     all_X, all_y, all_img_left_paths, all_img_right_paths = load_dataset(
         path="data/train", run_nums=[1, 2])
 
-    assert all_X.shape == (2549, 41)
+    assert all_X.shape == (2549, 44)
     assert all_y.shape == (2549, 3)
 
     assert len(all_img_left_paths) == 2549
