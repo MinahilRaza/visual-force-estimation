@@ -19,6 +19,8 @@ def parse_cmd_line() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("-w", "--weights", required=True)
     parser.add_argument("-r", "--run", required=True)
+    parser.add_argument("--pdf", action='store_true', default=False,
+                        help='stores the plots as pdf instead of png')
     return parser.parse_args()
 
 
@@ -35,7 +37,7 @@ def save_predictions(dir: str, forces_pred: np.ndarray, forces_gt: np.ndarray):
                 file.write(line)
 
 
-def plot_forces(forces_pred: np.ndarray, forces_gt: np.ndarray):
+def plot_forces(forces_pred: np.ndarray, forces_gt: np.ndarray, pdf: bool):
     assert forces_pred.shape == forces_gt.shape
     assert forces_pred.shape[1] == 3
 
@@ -58,7 +60,8 @@ def plot_forces(forces_pred: np.ndarray, forces_gt: np.ndarray):
         plt.xlabel('Time')
         plt.ylabel(y_labels[i])
         plt.legend()
-        plt.savefig(f'plots/force_{i}.pdf')
+        save_path = f"plots/force_{i}.{'pdf' if pdf else 'png'}"
+        plt.savefig(save_path)
         plt.close()
 
 
@@ -91,7 +94,7 @@ def eval(args: argparse.Namespace) -> None:
     if not os.path.exists(weights_path) or not os.path.isfile(weights_path):
         raise Warning(f"Invalid weights file: {weights_path}")
     model = VisionRobotNet(num_image_features=30,
-                           num_robot_features=38)
+                           num_robot_features=44)
     model.eval()
     model.load_state_dict(torch.load(weights_path))
     print(f"[INFO] Loaded model from: {weights_path}")
@@ -120,7 +123,7 @@ def eval(args: argparse.Namespace) -> None:
     data_loader = DataLoader(dataset, batch_size=batch_size)
     forces_pred, forces_gt = eval_model(model, data_loader, device)
     save_predictions("predictions", forces_pred, forces_gt)
-    plot_forces(forces_pred, forces_gt)
+    plot_forces(forces_pred, forces_gt, args.pdf)
 
 
 if __name__ == "__main__":
