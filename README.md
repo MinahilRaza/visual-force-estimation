@@ -13,9 +13,9 @@ python3 train.py --batch_size 8 --lr 0.00001 --num_epochs 5 --train_runs 1 2 3 4
 The following command evaluates a model, where the weights are stored in a `.pth` file at `<PATH_TO_WEIGHTS>`:
 
 ```bash
-python3 evaluate.py --weights <PATH_TO_WEIGHTS>
+python3 evaluate.py --weights <PATH_TO_WEIGHTS> --run <RUN_NR> --pdf
 ```
-
+The flag `--pdf` is used to create plots in pdf format, otherwise they are created in png format.
 
 ## Image Preprocessing
 
