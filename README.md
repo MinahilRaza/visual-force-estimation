@@ -1,4 +1,4 @@
-# Force Estimation using Convolutional Neural Networks
+# Force Estimation using Convolutional Neural Networks ![example](https://github.com/TimReX-22/visual_force_estimation/actions/workflows/python-app.yml/badge.svg)
 
 ## Training
 
