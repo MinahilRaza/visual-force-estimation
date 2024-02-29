@@ -105,3 +105,4 @@ class Trainer():
             print(f"Train Loss: {loss_phase['train'].item()}\t \
                 Test Loss: {loss_phase['test'].item()} Test RMSE: {acc_phase['test'].item()}")
         torch.save(self.model.state_dict(), self.save_path_last)
+        self.writer.flush()
