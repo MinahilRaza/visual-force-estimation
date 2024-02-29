@@ -1,37 +1,16 @@
 import os
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 import pandas as pd
 import numpy as np
 from pathlib import Path
 
 from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import Dataset
 
-FEATURE_COLUMS = ['PSM1_joint_1', 'PSM1_joint_2', 'PSM1_joint_3', 'PSM1_joint_4',
-                  'PSM1_joint_5', 'PSM1_joint_6', 'PSM1_jaw_angle', 'PSM1_ee_x',
-                  'PSM1_ee_y', 'PSM1_ee_z', 'PSM1_Orientation_Matrix_[1,1]',
-                  'PSM1_Orientation_Matrix_[1,2]', 'PSM1_Orientation_Matrix_[1,3]',
-                  'PSM1_Orientation_Matrix_[2,1]', 'PSM1_Orientation_Matrix_[2,2]',
-                  'PSM1_Orientation_Matrix_[2,3]', 'PSM1_Orientation_Matrix_[3,1]',
-                  'PSM1_Orientation_Matrix_[3,2]', 'PSM1_Orientation_Matrix_[3,3]',
-                  'PSM2_joint_1', 'PSM2_joint_2', 'PSM2_joint_3', 'PSM2_joint_4',
-                  'PSM2_joint_5', 'PSM2_joint_6', 'PSM2_jaw_angle', 'PSM2_ee_x',
-                  'PSM2_ee_y', 'PSM2_ee_z', 'PSM2_Orientation_Matrix_[1,1]',
-                  'PSM2_Orientation_Matrix_[1,2]', 'PSM2_Orientation_Matrix_[1,3]',
-                  'PSM2_Orientation_Matrix_[2,1]', 'PSM2_Orientation_Matrix_[2,2]',
-                  'PSM2_Orientation_Matrix_[2,3]', 'PSM2_Orientation_Matrix_[3,1]',
-                  'PSM2_Orientation_Matrix_[3,2]', 'PSM2_Orientation_Matrix_[3,3]']
-
-IMAGE_COLUMS = ['ZED Camera Left', 'ZED Camera Right']
-
-TIME_COLUMN = ["Time (Seconds)"]
-
-VELOCITY_COLUMNS = [f'PSM{nr}_ee_v_{axis}'
-                    for axis in ['x', 'y', 'z'] for nr in [1, 2]]
-
-TARGET_COLUMNS = ['Force_x_smooth', 'Force_y_smooth', 'Force_z_smooth']
+import constants
 
 
 def get_img_paths(cam: str, excel_df: pd.DataFrame) -> List[str]:
@@ -47,30 +26,45 @@ def get_img_paths(cam: str, excel_df: pd.DataFrame) -> List[str]:
     return img_paths
 
 
-def load_data(excel_file_names: List[str]) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]]:
-    assert isinstance(excel_file_names, list)
+def load_data(runs: dict[str, List[int]], data_dir: str, plot_forces: bool = False) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]]:
+    assert isinstance(runs, dict), f"{runs=}"
 
     all_X = []
     all_y = []
     all_img_left_paths = []
     all_img_right_paths = []
 
-    for excel_file_name in excel_file_names:
-        print(f"Loading data: {excel_file_name}")
-        relevant_cols = FEATURE_COLUMS + IMAGE_COLUMS + TARGET_COLUMNS + TIME_COLUMN
-        excel_df = pd.read_excel(excel_file_name, usecols=relevant_cols)
-        excel_df = calculate_velocity(excel_df)
-        excel_df = excel_df.drop(TIME_COLUMN, axis=1)
+    relevant_cols = constants.FEATURE_COLUMS + constants.IMAGE_COLUMS + \
+        constants.TARGET_COLUMNS + constants.TIME_COLUMN
 
-        X = excel_df[FEATURE_COLUMS + VELOCITY_COLUMNS].to_numpy()
-        y = excel_df[TARGET_COLUMNS].to_numpy()
-        img_left_paths = get_img_paths("Left", excel_df)
-        img_right_paths = get_img_paths("Right", excel_df)
+    for policy, runs in runs.items():
+        for run in runs:
+            print(f"Loading data for run {run} of policy {policy}")
+            excel_file_name = constants.EXCEL_FILE_NAMES[policy][run]
+            excel_file_path = os.path.join(data_dir, excel_file_name)
+            excel_df = pd.read_excel(excel_file_path, usecols=relevant_cols)
+            excel_df = calculate_velocity(excel_df)
+            excel_df = excel_df.drop(constants.TIME_COLUMN, axis=1)
 
-        all_X.append(X)
-        all_y.append(y)
-        all_img_left_paths += img_left_paths
-        all_img_right_paths += img_right_paths
+            if plot_forces:
+                forces_arr = excel_df[constants.TARGET_COLUMNS].to_numpy()
+                plot_forces(forces_arr, run_nr=run, policy=policy, pdf=True)
+
+            for times in constants.START_END_TIMES[policy][run]:
+                start = times[0]
+                end = times[1]
+                actual_data_df = excel_df.iloc[start:end, :]
+
+                X = actual_data_df[constants.FEATURE_COLUMS +
+                                   constants.VELOCITY_COLUMNS].to_numpy()
+                y = actual_data_df[constants.TARGET_COLUMNS].to_numpy()
+                img_left_paths = get_img_paths("Left", actual_data_df)
+                img_right_paths = get_img_paths("Right", actual_data_df)
+
+                all_X.append(X)
+                all_y.append(y)
+                all_img_left_paths += img_left_paths
+                all_img_right_paths += img_right_paths
 
     all_X = np.concatenate(all_X, axis=0)
     all_y = np.concatenate(all_y, axis=0)
@@ -93,7 +87,7 @@ def calculate_velocity(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_dataset(path: str, run_nums: Optional[List[int]] = None):
+def load_dataset(path: str, force_policy_runs: List[int], no_force_policy_runs: List[int]):
     assert os.path.isdir(path), f"{path} is not a directory"
     assert os.path.exists(os.path.join(path, "images")), \
         f"{path} does not contain an images directory"
@@ -102,16 +96,12 @@ def load_dataset(path: str, run_nums: Optional[List[int]] = None):
 
     roll_out_dir = os.path.join(path, "roll_out")
 
-    if run_nums is None:
-        excel_files = [os.path.join(roll_out_dir, f)
-                       for f in os.listdir(roll_out_dir)]
-    else:
-        assert isinstance(run_nums, list)
-        assert len(run_nums) > 0
-        excel_files = [
-            f"{roll_out_dir}/dec6_force_no_TA_lastP_randomPosHeight_cs100_run{n}.xlsx" for n in run_nums]
+    runs = {
+        "force_policy": force_policy_runs,
+        "no_force_policy": no_force_policy_runs
+    }
 
-    return load_data(excel_files)
+    return load_data(runs, roll_out_dir)
 
 
 def apply_scaling_to_datasets(train_dataset: Dataset, test_dataset: Dataset) -> None:
@@ -143,16 +133,41 @@ def create_weights_path(lr: float, num_epochs: int, base_dir: str = "weights") -
                     counts.append(int(parts[1]))
         highest_count = max(counts) + 1 if counts else 1
 
-    new_dir_path = base_path / \
-        f"run_{highest_count}_lr_{lr}_epochs_{num_epochs}"
+    run_name = f"run_{highest_count}_lr_{lr}_epochs_{num_epochs}"
+    new_dir_path = base_path / run_name
     return str(new_dir_path)
 
 
-if __name__ == "__main__":
-    all_X, all_y, all_img_left_paths, all_img_right_paths = load_dataset(
-        path="data/train", run_nums=[1, 2])
+def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool):
+    assert forces.shape[1] == 3
+    os.makedirs('plots', exist_ok=True)
+    time_axis = np.arange(forces.shape[0])
 
-    assert all_X.shape == (2549, 44)
+    plt.figure()
+    plt.plot(time_axis, forces[:, 0],
+             label='X', linestyle='-', marker='')
+    plt.plot(time_axis, forces[:, 1],
+             label='X', linestyle='-', marker='')
+    plt.plot(time_axis, forces[:, 2],
+             label='X', linestyle='-', marker='')
+    policy_name = "Force Policy" if policy == "force_policy" else "No Force Policy"
+    plt.title(f"{policy_name}, Run {run_nr}")
+    plt.xlabel('Time')
+    plt.ylabel('Force [N]')
+    plt.legend()
+    save_path = f"plots/rollout_{policy}_{run_nr}.{'pdf' if pdf else 'png'}"
+    plt.savefig(save_path)
+    plt.close()
+
+
+if __name__ == "__main__":
+    data = load_dataset(path="data/test",
+                        force_policy_runs=[11], no_force_policy_runs=[1])
+    exit(0)
+    all_X, all_y, all_img_left_paths, all_img_right_paths = load_dataset(
+        path="data/train", force_policy_runs=[1, 2, 3, 4, 8, 9, 10], no_force_policy_runs=[4])
+
+    assert all_X.shape == (2549, 44), f"{all_X.shape=}"
     assert all_y.shape == (2549, 3)
 
     assert len(all_img_left_paths) == 2549
