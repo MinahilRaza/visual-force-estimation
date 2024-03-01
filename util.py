@@ -26,7 +26,7 @@ def get_img_paths(cam: str, excel_df: pd.DataFrame) -> List[str]:
     return img_paths
 
 
-def load_data(runs: dict[str, List[int]], data_dir: str, plot_forces: bool = False) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]]:
+def load_data(runs: dict[str, List[int]], data_dir: str, create_plots: bool = False) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]]:
     assert isinstance(runs, dict), f"{runs=}"
 
     all_X = []
@@ -46,7 +46,7 @@ def load_data(runs: dict[str, List[int]], data_dir: str, plot_forces: bool = Fal
             excel_df = calculate_velocity(excel_df)
             excel_df = excel_df.drop(constants.TIME_COLUMN, axis=1)
 
-            if plot_forces:
+            if create_plots:
                 forces_arr = excel_df[constants.TARGET_COLUMNS].to_numpy()
                 plot_forces(forces_arr, run_nr=run, policy=policy, pdf=True)
 
@@ -87,7 +87,10 @@ def calculate_velocity(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def load_dataset(path: str, force_policy_runs: List[int], no_force_policy_runs: List[int]):
+def load_dataset(path: str,
+                 force_policy_runs: List[int],
+                 no_force_policy_runs: List[int],
+                 create_plots: bool = False):
     assert os.path.isdir(path), f"{path} is not a directory"
     assert os.path.exists(os.path.join(path, "images")), \
         f"{path} does not contain an images directory"
@@ -101,7 +104,7 @@ def load_dataset(path: str, force_policy_runs: List[int], no_force_policy_runs: 
         "no_force_policy": no_force_policy_runs
     }
 
-    return load_data(runs, roll_out_dir)
+    return load_data(runs, roll_out_dir, create_plots=create_plots)
 
 
 def apply_scaling_to_datasets(train_dataset: Dataset, test_dataset: Dataset) -> None:
@@ -161,11 +164,8 @@ def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool):
 
 
 if __name__ == "__main__":
-    data = load_dataset(path="data/test",
-                        force_policy_runs=[11], no_force_policy_runs=[1])
-    exit(0)
     all_X, all_y, all_img_left_paths, all_img_right_paths = load_dataset(
-        path="data/train", force_policy_runs=[1, 2, 3, 4, 8, 9, 10], no_force_policy_runs=[4])
+        path="data", force_policy_runs=[6], no_force_policy_runs=[4], create_plots=True)
 
     assert all_X.shape == (2549, 44), f"{all_X.shape=}"
     assert all_y.shape == (2549, 3)
