@@ -21,9 +21,9 @@ class VisionRobotNet(nn.Module):
         self.fc3 = nn.Linear(256, 64)
         self.fc4 = nn.Linear(64, 3)
 
-        self.bn1 = nn.BatchNorm1d(84)
-        self.bn2 = nn.BatchNorm1d(180)
-        self.bn3 = nn.BatchNorm1d(50)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.bn2 = nn.BatchNorm1d(256)
+        self.bn3 = nn.BatchNorm1d(64)
 
         self.dropout = nn.Dropout(dropout_rate)
         self.relu = nn.ReLU()
