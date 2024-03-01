@@ -15,6 +15,7 @@ from transforms import CropBottom
 from models import VisionRobotNet
 from loss import RMSELoss
 from trainer.trainer import Trainer
+import constants
 
 from torch.utils.tensorboard import SummaryWriter
 WRITER = SummaryWriter()
@@ -57,7 +58,7 @@ def train(args: argparse.Namespace):
 
     data_transforms = {"train": train_transform, "test": test_transform}
     run_nums = {"train": [args.force_runs, []],
-                "test": [[4], []]}
+                "test": [[9], []]}
 
     batch_size = int(args.batch_size)
     lr = float(args.lr)
@@ -90,8 +91,8 @@ def train(args: argparse.Namespace):
 
     print(f"[INFO] Using Device: {device}")
 
-    model = VisionRobotNet(num_image_features=30,
-                           num_robot_features=44,
+    model = VisionRobotNet(num_image_features=2 * constants.NUM_IMAGE_FEATURES,
+                           num_robot_features=constants.NUM_ROBOT_FEATURES,
                            dropout_rate=0.2)
     model.to(device)
 

@@ -48,7 +48,7 @@ def load_data(runs: dict[str, List[int]], data_dir: str, create_plots: bool = Fa
 
             if create_plots:
                 forces_arr = excel_df[constants.TARGET_COLUMNS].to_numpy()
-                plot_forces(forces_arr, run_nr=run, policy=policy, pdf=True)
+                plot_forces(forces_arr, run_nr=run, policy=policy, pdf=False)
 
             for times in constants.START_END_TIMES[policy][run]:
                 start = times[0]
@@ -73,18 +73,29 @@ def load_data(runs: dict[str, List[int]], data_dir: str, create_plots: bool = Fa
 
 
 def calculate_velocity(df: pd.DataFrame) -> pd.DataFrame:
-    for axis in ['x', 'y', 'z']:
-        for nr in [1, 2]:
+    for nr in [1, 2]:
+        for axis in ['x', 'y', 'z']:
             position_col = f'PSM{nr}_ee_{axis}'
             velocity_col = f'PSM{nr}_ee_v_{axis}'
-            df[velocity_col] = df[position_col].diff() / \
-                df["Time (Seconds)"].diff()
-            # first element is nan, as the velocity cannot be computed
-            df.loc[df.index[0], velocity_col] = 0
-            assert len(df[position_col]) == len(df[velocity_col])
-            assert df[velocity_col].isnull().sum() == 0
+            set_velocity(df, position_col, velocity_col)
+        for joint in range(1, 7):
+            position_col = f'PSM{nr}_joint_{joint}'
+            velocity_col = f'PSM{nr}_joint_{joint}_v'
+            set_velocity(df, position_col, velocity_col)
+        position_col = f'PSM{nr}_jaw_angle'
+        velocity_col = f'PSM{nr}_jaw_angle_v'
+        set_velocity(df, position_col, velocity_col)
 
     return df
+
+
+def set_velocity(df: pd.DataFrame, position_col: str, velocity_col: str):
+    df[velocity_col] = df[position_col].diff() / \
+        df["Time (Seconds)"].diff()
+    # first element is nan, as the velocity cannot be computed
+    df.loc[df.index[0], velocity_col] = 0
+    assert len(df[position_col]) == len(df[velocity_col])
+    assert df[velocity_col].isnull().sum() == 0
 
 
 def load_dataset(path: str,
@@ -148,11 +159,11 @@ def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool):
 
     plt.figure()
     plt.plot(time_axis, forces[:, 0],
-             label='X', linestyle='-', marker='')
+             label='x-axis', linestyle='-', marker='')
     plt.plot(time_axis, forces[:, 1],
-             label='X', linestyle='-', marker='')
+             label='y-axis', linestyle='-', marker='')
     plt.plot(time_axis, forces[:, 2],
-             label='X', linestyle='-', marker='')
+             label='z-axis', linestyle='-', marker='')
     policy_name = "Force Policy" if policy == "force_policy" else "No Force Policy"
     plt.title(f"{policy_name}, Run {run_nr}")
     plt.xlabel('Time')
@@ -165,7 +176,7 @@ def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool):
 
 if __name__ == "__main__":
     all_X, all_y, all_img_left_paths, all_img_right_paths = load_dataset(
-        path="data", force_policy_runs=[6], no_force_policy_runs=[4], create_plots=True)
+        path="data", force_policy_runs=[1, 2, 3, 4, 6], no_force_policy_runs=[1, 4], create_plots=True)
 
     assert all_X.shape == (2549, 44), f"{all_X.shape=}"
     assert all_y.shape == (2549, 3)

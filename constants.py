@@ -24,8 +24,10 @@ IMAGE_COLUMS = ['ZED Camera Left', 'ZED Camera Right']
 
 TIME_COLUMN = ["Time (Seconds)"]
 
-VELOCITY_COLUMNS = [f'PSM{nr}_ee_v_{axis}'
-                    for axis in ['x', 'y', 'z'] for nr in [1, 2]]
+VELOCITY_COLUMNS = \
+    [f'PSM{nr}_ee_v_{axis}' for axis in ['x', 'y', 'z'] for nr in [1, 2]] \
+    + [f'PSM{nr}_joint_{joint}_v' for joint in range(1, 7) for nr in [1, 2]] \
+    + [f'PSM{nr}_jaw_angle_v' for nr in [1, 2]]
 
 TARGET_COLUMNS = ['Force_x_smooth', 'Force_y_smooth', 'Force_z_smooth']
 
@@ -34,7 +36,7 @@ START_END_TIMES = {
         1: [(400, -1)],
         2: [(700, -1)],
         3: [(800, -1)],
-        4: [(500, 1200), (2500, -1)],
+        4: [(400, 1200), (2500, -1)],
         6: [(2000, -1)],
         8: [(500, -1)],
         9: [(700, 1700), (2200, -1)],
@@ -65,3 +67,6 @@ EXCEL_FILE_NAMES = {
         4: "dec6_no_force_no_TA_lastP_randomPosHeight_cs100_run4.xlsx",
     }
 }
+
+NUM_IMAGE_FEATURES = 30
+NUM_ROBOT_FEATURES = 58
