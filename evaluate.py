@@ -13,12 +13,13 @@ from models import VisionRobotNet
 from transforms import CropBottom
 from dataset import VisionRobotDataset
 from util import load_dataset
+import constants
 
 
 def parse_cmd_line() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("-w", "--weights", required=True)
-    parser.add_argument("-r", "--run", required=True)
+    parser.add_argument("-r", "--run", required=True, type=int)
     parser.add_argument("--pdf", action='store_true', default=False,
                         help='stores the plots as pdf instead of png')
     return parser.parse_args()
@@ -93,8 +94,8 @@ def eval(args: argparse.Namespace) -> None:
     weights_path = args.weights
     if not os.path.exists(weights_path) or not os.path.isfile(weights_path):
         raise Warning(f"Invalid weights file: {weights_path}")
-    model = VisionRobotNet(num_image_features=30,
-                           num_robot_features=44)
+    model = VisionRobotNet(num_image_features=constants.NUM_IMAGE_FEATURES,
+                           num_robot_features=constants.NUM_ROBOT_FEATURES)
     model.eval()
     model.load_state_dict(torch.load(weights_path))
     print(f"[INFO] Loaded model from: {weights_path}")
@@ -115,8 +116,9 @@ def eval(args: argparse.Namespace) -> None:
 
     batch_size = 8
 
-    path = "data/val"
-    data = load_dataset(path, run_nums=[args.run])
+    path = "data"
+    data = load_dataset(path, force_policy_runs=[
+                        args.run], no_force_policy_runs=[])
     dataset = VisionRobotDataset(
         *data, path=path, transforms=val_transform)
     print(f"Loaded Dataset with {len(dataset)} samples!")
