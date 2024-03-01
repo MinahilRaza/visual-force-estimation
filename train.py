@@ -91,7 +91,7 @@ def train(args: argparse.Namespace):
 
     print(f"[INFO] Using Device: {device}")
 
-    model = VisionRobotNet(num_image_features=2 * constants.NUM_IMAGE_FEATURES,
+    model = VisionRobotNet(num_image_features=constants.NUM_IMAGE_FEATURES,
                            num_robot_features=constants.NUM_ROBOT_FEATURES,
                            dropout_rate=0.2)
     model.to(device)
