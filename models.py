@@ -16,10 +16,10 @@ class VisionRobotNet(nn.Module):
         self.num_image_features = num_image_features
         self.num_robot_features = num_robot_features
 
-        self.fc1 = nn.Linear(2 * num_image_features + num_robot_features, 84)
-        self.fc2 = nn.Linear(84, 180)
-        self.fc3 = nn.Linear(180, 50)
-        self.fc4 = nn.Linear(50, 3)
+        self.fc1 = nn.Linear(2 * num_image_features + num_robot_features, 128)
+        self.fc2 = nn.Linear(128, 256)
+        self.fc3 = nn.Linear(256, 64)
+        self.fc4 = nn.Linear(64, 3)
 
         self.bn1 = nn.BatchNorm1d(84)
         self.bn2 = nn.BatchNorm1d(180)
