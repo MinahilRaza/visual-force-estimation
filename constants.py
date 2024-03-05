@@ -45,27 +45,18 @@ START_END_TIMES = {
     },
     "no_force_policy": {
         1: [(500, -1)],
+        3: [(700, -1)],
         4: [(500, -1)]
     }
 }
 
 EXCEL_FILE_NAMES = {
     "force_policy": {
-        1: "dec6_force_no_TA_lastP_randomPosHeight_cs100_run1.xlsx",
-        2: "dec6_force_no_TA_lastP_randomPosHeight_cs100_run2.xlsx",
-        3: "dec6_force_no_TA_lastP_randomPosHeight_cs100_run3.xlsx",
-        4: "dec6_force_no_TA_lastP_randomPosHeight_cs100_run4.xlsx",
-        6: "dec6_force_no_TA_lastP_randomPosHeight_cs100_run6.xlsx",
-        7: "corrupted_file",
-        8: "dec6_force_no_TA_lastP_randomPosHeight_cs100_run8.xlsx",
-        9: "dec6_force_no_TA_lastP_randomPosHeight_cs100_run9.xlsx",
-        10: "dec6_force_no_TA_lastP_randomPosHeight_cs100_run10.xlsx",
-        11: "dec6_force_no_TA_lastP_randomPosHeight_cs100_run11.xlsx"
+        key: f"dec6_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" for key in range(1, 15)
     },
     "no_force_policy": {
-        1: "dec6_no_force_no_TA_lastP_randomPosHeight_cs100_run1.xlsx",
-        4: "dec6_no_force_no_TA_lastP_randomPosHeight_cs100_run4.xlsx",
-    }
+        key: f"dec6_no_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" for key in range(1, 5)
+    },
 }
 
 NUM_IMAGE_FEATURES = 30
