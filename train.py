@@ -35,6 +35,8 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("--num_epochs", required=True)
     parser.add_argument('--force_runs', nargs='+',
                         type=int, help='A list of the run numbers of the force policy rollouts that should be used for training', required=True)
+    parser.add_argument('--no_force_runs', nargs='+',
+                        type=int, help='A list of the run numbers of the NO force policy rollouts that should be used for training', required=True)
     return parser.parse_args()
 
 
@@ -57,8 +59,8 @@ def train(args: argparse.Namespace):
     ])
 
     data_transforms = {"train": train_transform, "test": test_transform}
-    run_nums = {"train": [args.force_runs, []],
-                "test": [[9], []]}
+    run_nums = {"train": [args.force_runs, args.no_force_runs],
+                "test": [[9, 10], []]}
 
     batch_size = int(args.batch_size)
     lr = float(args.lr)
