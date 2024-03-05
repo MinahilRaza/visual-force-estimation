@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 from tqdm import tqdm
 
 import torch
@@ -8,6 +8,11 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from loss import RMSELoss
+
+
+class LRSchedulerConfig(object):
+    step_size = 20
+    gamma = 0.1
 
 
 class Trainer():
@@ -19,7 +24,8 @@ class Trainer():
                  lr: float,
                  regularized: bool,
                  weights_dir: str,
-                 writer: SummaryWriter) -> None:
+                 writer: SummaryWriter,
+                 lr_scheduler_config: Optional[LRSchedulerConfig] = None) -> None:
         self.model = model
         self.data_loaders = data_loaders
         assert "train" in data_loaders and "test" in data_loaders, \
@@ -38,9 +44,15 @@ class Trainer():
             raise ValueError(f"Invalid Criterion specified: {criterion}")
 
         self.lr = lr
-        weights_decay = 1e-5 if regularized else 0
+        weights_decay = 1e-5 if regularized else 0.0
         self.optimizer = torch.optim.Adam(
             self.model.parameters(), lr=lr, weight_decay=weights_decay)
+        if lr_scheduler_config is not None:
+            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,
+                                                             step_size=lr_scheduler_config.step_size,
+                                                             gamma=lr_scheduler_config.gamma)
+        else:
+            self.scheduler = None
 
         self.acc_module = RMSELoss()
 
@@ -86,6 +98,8 @@ class Trainer():
                             self.optimizer.zero_grad()
                             loss.backward()
                             self.optimizer.step()
+                        if phase == "train" and self.scheduler:
+                            self.scheduler.step()
 
                 avg_loss_epoch = total_loss_epoch / \
                     len(self.data_loaders[phase])

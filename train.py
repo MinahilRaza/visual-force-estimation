@@ -14,29 +14,22 @@ from dataset import VisionRobotDataset
 from transforms import CropBottom
 from models import VisionRobotNet
 from loss import RMSELoss
-from trainer.trainer import Trainer
+from trainer.trainer import Trainer, LRSchedulerConfig
 import constants
 
 from torch.utils.tensorboard import SummaryWriter
-WRITER = SummaryWriter()
-layout = {
-    "Training Plots": {
-        "MSE": ["Multiline", ["MSE/train", "MSE/test"]],
-        "RMSE": ["Multiline", ["RMSE/train", "RMSE/test"]],
-    },
-}
-WRITER.add_custom_scalars(layout)
 
 
 def parse_cmd_line() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", required=True)
-    parser.add_argument("--lr", required=True)
-    parser.add_argument("--num_epochs", required=True)
+    parser.add_argument("--batch_size", required=True, type=int)
+    parser.add_argument("--lr", required=True, type=float)
+    parser.add_argument("--num_epochs", required=True, type=int)
     parser.add_argument('--force_runs', nargs='+',
                         type=int, help='A list of the run numbers of the force policy rollouts that should be used for training', required=True)
     parser.add_argument('--no_force_runs', nargs='+',
                         type=int, help='A list of the run numbers of the NO force policy rollouts that should be used for training', required=True)
+    parser.add_argument('--lr_scheduler', action='store_true', default=False)
     return parser.parse_args()
 
 
@@ -71,7 +64,9 @@ def train(args: argparse.Namespace):
         'lr': lr,
         'num_epochs': num_epochs
     }
-    WRITER.add_hparams(hparams, {})
+    writer = SummaryWriter()
+    writer.add_custom_scalars(constants.LAYOUT)
+    writer.add_hparams(hparams, {})
 
     data_dir = "data"
     sets = ["train", "test"]
@@ -99,6 +94,7 @@ def train(args: argparse.Namespace):
     model.to(device)
 
     weights_dir = create_weights_path(lr, num_epochs)
+    lr_scheduler_config = LRSchedulerConfig() if args.lr_scheduler else None
     trainer = Trainer(model,
                       data_loaders,
                       device,
@@ -106,7 +102,8 @@ def train(args: argparse.Namespace):
                       lr=lr,
                       regularized=True,
                       weights_dir=weights_dir,
-                      writer=WRITER)
+                      writer=writer,
+                      lr_scheduler_config=lr_scheduler_config)
     trainer.train(num_epochs=num_epochs)
 
 
