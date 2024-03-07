@@ -94,7 +94,8 @@ def eval(args: argparse.Namespace) -> None:
     weights_path = args.weights
     if not os.path.exists(weights_path) or not os.path.isfile(weights_path):
         raise Warning(f"Invalid weights file: {weights_path}")
-    model = VisionRobotNet(num_image_features=constants.NUM_IMAGE_FEATURES,
+    model = VisionRobotNet(cnn_model_version=constants.CNN_MODEL_VERSION,
+                           num_image_features=constants.NUM_IMAGE_FEATURES,
                            num_robot_features=constants.NUM_ROBOT_FEATURES)
     model.eval()
     model.load_state_dict(torch.load(weights_path))
