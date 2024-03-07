@@ -2,9 +2,7 @@ import os
 from typing import List
 import torch
 import torch.nn as nn
-import torchvision
 from torchvision import transforms
-from tqdm import tqdm
 import argparse
 
 from torch.utils.data import DataLoader
@@ -13,7 +11,6 @@ from util import load_dataset, apply_scaling_to_datasets, create_weights_path
 from dataset import VisionRobotDataset
 from transforms import CropBottom
 from models import VisionRobotNet
-from loss import RMSELoss
 from trainer.trainer import Trainer, LRSchedulerConfig
 import constants
 
@@ -88,7 +85,8 @@ def train(args: argparse.Namespace):
 
     print(f"[INFO] Using Device: {device}")
 
-    model = VisionRobotNet(num_image_features=constants.NUM_IMAGE_FEATURES,
+    model = VisionRobotNet(cnn_model_version=constants.CNN_MODEL_VERSION,
+                           num_image_features=constants.NUM_IMAGE_FEATURES,
                            num_robot_features=constants.NUM_ROBOT_FEATURES,
                            dropout_rate=0.2)
     model.to(device)
