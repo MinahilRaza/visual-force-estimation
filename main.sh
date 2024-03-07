@@ -1,3 +1,5 @@
 #!/usr/bin/bash
 
-python train.py --batch_size 16 --lr 0.0001 --num_epochs 50 --force_runs 1 2 3 4 6 8 --no_force_runs 1 4 --lr_scheduler
+# python train.py --batch_size 8 --lr 0.00001 --model res_net --num_epochs 50 --force_runs 1 2 3 4 6 8 --no_force_runs 1 4
+
+python train.py --batch_size 8 --lr 0.001 --model efficientnet_v2_m --num_epochs 50 --force_runs 1 2 3 4 6 8 --no_force_runs 1 4

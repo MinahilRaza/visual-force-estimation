@@ -35,6 +35,8 @@ class VisionRobotNet(nn.Module):
         self.dropout = nn.Dropout(dropout_rate)
         self.relu = nn.ReLU()
 
+        self._initialize_weights()
+
     @staticmethod
     def _init_res_net(num_image_features: int) -> models.ResNet:
         res_net = models.resnet50(weights='IMAGENET1K_V1')
@@ -69,6 +71,13 @@ class VisionRobotNet(nn.Module):
             num_features, num_image_features)
 
         return efficient_net
+
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
     def forward(self, img_right: torch.Tensor, img_left: torch.Tensor, x: torch.Tensor):
         img_right_features = self.cnn_right(img_right)

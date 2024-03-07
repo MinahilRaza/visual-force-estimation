@@ -22,6 +22,7 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("--batch_size", required=True, type=int)
     parser.add_argument("--lr", required=True, type=float)
     parser.add_argument("--num_epochs", required=True, type=int)
+    parser.add_argument("--model", required=True, type=str)
     parser.add_argument('--force_runs', nargs='+',
                         type=int, help='A list of the run numbers of the force policy rollouts that should be used for training', required=True)
     parser.add_argument('--no_force_runs', nargs='+',
@@ -84,8 +85,9 @@ def train(args: argparse.Namespace):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(f"[INFO] Using Device: {device}")
+    print(f"[INFO] Training Model: {args.model}")
 
-    model = VisionRobotNet(cnn_model_version=constants.CNN_MODEL_VERSION,
+    model = VisionRobotNet(cnn_model_version=args.model,
                            num_image_features=constants.NUM_IMAGE_FEATURES,
                            num_robot_features=constants.NUM_ROBOT_FEATURES,
                            dropout_rate=0.2)
