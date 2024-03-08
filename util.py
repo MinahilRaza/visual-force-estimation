@@ -129,11 +129,13 @@ def apply_scaling_to_datasets(train_dataset: Dataset, test_dataset: Dataset) -> 
         scaler.transform(test_dataset.robot_features.numpy())).float()
 
 
-def create_weights_path(lr: float, num_epochs: int, base_dir: str = "weights") -> str:
+def create_weights_path(model: str, num_epochs: int, base_dir: str = "weights") -> str:
     """
     Creates a directory path for saving weights with a unique run count and specified parameters.
 
     """
+    assert isinstance(model, str)
+    assert isinstance(num_epochs, int)
     base_path = Path(base_dir)
     if not base_path.exists():
         base_path.mkdir(parents=True, exist_ok=True)
@@ -147,7 +149,7 @@ def create_weights_path(lr: float, num_epochs: int, base_dir: str = "weights") -
                     counts.append(int(parts[1]))
         highest_count = max(counts) + 1 if counts else 1
 
-    run_name = f"run_{highest_count}_lr_{lr}_epochs_{num_epochs}"
+    run_name = f"run_{highest_count}_{model}_epochs_{num_epochs}"
     new_dir_path = base_path / run_name
     return str(new_dir_path)
 

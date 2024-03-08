@@ -53,14 +53,11 @@ def train(args: argparse.Namespace):
     run_nums = {"train": [args.force_runs, args.no_force_runs],
                 "test": [[9, 10], []]}
 
-    batch_size = int(args.batch_size)
-    lr = float(args.lr)
-    num_epochs = int(args.num_epochs)
-
     hparams = {
-        'batch_size': batch_size,
-        'lr': lr,
-        'num_epochs': num_epochs
+        'batch_size': args.batch_size,
+        'lr': args.lr,
+        'num_epochs': args.num_epochs,
+        'model': args.model
     }
     writer = SummaryWriter()
     writer.add_custom_scalars(constants.LAYOUT)
@@ -77,7 +74,7 @@ def train(args: argparse.Namespace):
             *data, path=data_dir, transforms=data_transforms[s])
         print(f"Loaded Dataset {s} with {len(dataset)} samples!")
         data_loaders[s] = DataLoader(
-            dataset, batch_size=batch_size, drop_last=True)
+            dataset, batch_size=args.batch_size, drop_last=True)
 
     apply_scaling_to_datasets(
         data_loaders["train"].dataset, data_loaders["test"].dataset)
@@ -93,18 +90,18 @@ def train(args: argparse.Namespace):
                            dropout_rate=0.2)
     model.to(device)
 
-    weights_dir = create_weights_path(lr, num_epochs)
+    weights_dir = create_weights_path(args.model, args.num_epochs)
     lr_scheduler_config = LRSchedulerConfig() if args.lr_scheduler else None
     trainer = Trainer(model,
                       data_loaders,
                       device,
                       criterion="mse",
-                      lr=lr,
+                      lr=args.lr,
                       regularized=True,
                       weights_dir=weights_dir,
                       writer=writer,
                       lr_scheduler_config=lr_scheduler_config)
-    trainer.train(num_epochs=num_epochs)
+    trainer.train(num_epochs=args.num_epochs)
 
 
 if __name__ == "__main__":
