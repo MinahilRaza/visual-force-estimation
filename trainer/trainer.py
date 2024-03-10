@@ -119,4 +119,6 @@ class Trainer():
             print(f"Train Loss: {loss_phase['train'].item()}\t \
                 Test Loss: {loss_phase['test'].item()} Test RMSE: {acc_phase['test'].item()}")
         torch.save(self.model.state_dict(), self.save_path_last)
+        with open(os.path.join(self.weights_dir, "best_acc.txt"), "w", encoding="utf-8") as file:
+            file.write(best_acc)
         self.writer.flush()
