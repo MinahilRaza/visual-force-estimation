@@ -11,6 +11,7 @@ class VisionRobotNet(nn.Module):
                  num_robot_features: int,
                  dropout_rate: float = 0.2) -> None:
         super().__init__()
+        self.cnn_version = cnn_model_version
         if cnn_model_version == "res_net":
             self.cnn_left = self._init_res_net(num_image_features)
             self.cnn_right = self._init_res_net(num_image_features)

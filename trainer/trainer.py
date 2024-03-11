@@ -65,6 +65,7 @@ class Trainer():
 
     def train(self, num_epochs: int):
         best_acc = float('inf')
+        epoch_logs = []
         for i in range(num_epochs):
             print(f"Epoch {i+1}/{num_epochs}")
             loss_phase = {}
@@ -116,9 +117,15 @@ class Trainer():
                     torch.save(self.model.state_dict(), self.save_path_best)
                     print(f"Saved new best model with \
                         RMSE:{round(avg_acc_epoch.item(), 4)}")
+            epoch_logs.append({
+                "Test Loss": loss_phase['test'].item(),
+                "Test RMSE": acc_phase['test'].item()})
             print(f"Train Loss: {loss_phase['train'].item()}\t \
                 Test Loss: {loss_phase['test'].item()} Test RMSE: {acc_phase['test'].item()}")
         torch.save(self.model.state_dict(), self.save_path_last)
         with open(os.path.join(self.weights_dir, "best_acc.txt"), "w", encoding="utf-8") as file:
-            file.write(best_acc)
+            file.write(f"CNN Model: {self.model.cnn_version}")
+            file.write(f"Best Acc: {best_acc}")
+            for i, log in enumerate(epoch_logs):
+                file.write(f"Epoch {i}: {log}")
         self.writer.flush()
