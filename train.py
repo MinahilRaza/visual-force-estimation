@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from util import load_dataset, apply_scaling_to_datasets, create_weights_path
 from dataset import VisionRobotDataset
 from transforms import CropBottom
-from models import VisionRobotNet
+from models.vision_robot_net import VisionRobotNet
 from trainer.trainer import Trainer, LRSchedulerConfig
 import constants
 

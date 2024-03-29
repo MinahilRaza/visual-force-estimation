@@ -9,7 +9,7 @@ import torch
 from torchvision import transforms
 from torch.utils.data import DataLoader
 
-from models import VisionRobotNet
+from models.vision_robot_net import VisionRobotNet
 from transforms import CropBottom
 from dataset import VisionRobotDataset
 from util import load_dataset

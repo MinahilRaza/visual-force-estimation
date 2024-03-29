@@ -123,9 +123,9 @@ class Trainer():
             print(f"Train Loss: {loss_phase['train'].item()}\t \
                 Test Loss: {loss_phase['test'].item()} Test RMSE: {acc_phase['test'].item()}")
         torch.save(self.model.state_dict(), self.save_path_last)
-        with open(os.path.join(self.weights_dir, "best_acc.txt"), "w", encoding="utf-8") as file:
-            file.write(f"CNN Model: {self.model.cnn_version}")
-            file.write(f"Best Acc: {best_acc}")
+        with open(os.path.join(self.weights_dir, "logs.txt"), "w", encoding="utf-8") as file:
+            file.write(f"CNN Model: {self.model.cnn_version}\n")
+            file.write(f"Best Acc: {best_acc}\n")
             for i, log in enumerate(epoch_logs):
-                file.write(f"Epoch {i}: {log}")
+                file.write(f"Epoch {i}: {log}\n")
         self.writer.flush()
