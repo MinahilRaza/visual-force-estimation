@@ -1,3 +1,7 @@
+from torchvision import transforms
+from transforms import CropBottom
+
+
 LAYOUT = {
     "Training Plots": {
         "MSE": ["Multiline", ["MSE/train", "MSE/test"]],
@@ -62,3 +66,19 @@ EXCEL_FILE_NAMES = {
 NUM_IMAGE_FEATURES = 30
 NUM_ROBOT_FEATURES = 58
 CNN_MODEL_VERSION = "efficientnet_v2_m"
+
+RES_NET_TRAIN_TRANSFORM = transforms.Compose([
+    transforms.RandomResizedCrop((224, 224)),
+    transforms.RandomHorizontalFlip(),
+    transforms.ColorJitter(
+        brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+
+RES_NET_TEST_TRANSFORM = transforms.Compose([
+    transforms.Resize((256, 256)),
+    CropBottom((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
