@@ -11,6 +11,39 @@ from PIL import Image
 from pathlib import Path
 
 
+class AutoEncoderDataset(Dataset):
+    """
+    Dataset class to store left and right images to train an auto encoder
+    """
+
+    def __init__(self,
+                 img_left_paths: List[str],
+                 img_right_paths: List[str],
+                 path: str,
+                 transforms: Optional[transforms.Compose] = None) -> None:
+        assert len(img_left_paths) == len(img_right_paths)
+        self.img_paths = img_left_paths + img_right_paths
+        assert len(self.img_paths) == len(
+            img_left_paths) + len(img_right_paths)
+        self.transforms = transforms
+        self.path = Path(path)
+
+    def __len__(self) -> int:
+        return len(self.img_paths)
+
+    def __getitem__(self, idx):
+        img_path = self.path / self.img_paths[idx]
+        img = Image.open(img_path)
+
+        assert img.size[0] == img.size[1] == 256, \
+            f"{img.size=}, {img_path=}"
+
+        if self.transforms:
+            img = self.transforms(img)
+
+        return {"img": img, "target": img}
+
+
 class VisionRobotDataset(Dataset):
     """
     Dataset class to store left and right images and robot data
