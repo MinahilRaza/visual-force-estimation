@@ -13,13 +13,13 @@ class VisionRobotNet(nn.Module):
         super().__init__()
         self.cnn_version = cnn_model_version
         if cnn_model_version == "res_net":
-            self.cnn_left = self._init_res_net(num_image_features)
-            self.cnn_right = self._init_res_net(num_image_features)
+            self.cnn = self._init_res_net(num_image_features)
+        elif cnn_model_version.startswith("efficientnet"):
+            self.cnn = self._init_efficient_net(
+                num_image_features, version=cnn_model_version)
         else:
-            self.cnn_left = self._init_efficient_net(
-                num_image_features, version=cnn_model_version)
-            self.cnn_right = self._init_efficient_net(
-                num_image_features, version=cnn_model_version)
+            self.cnn = self._init_finetuned_res_net(
+                num_image_features, cnn_model_version)
 
         self.num_image_features = num_image_features
         self.num_robot_features = num_robot_features
@@ -48,6 +48,23 @@ class VisionRobotNet(nn.Module):
 
         res_net.fc = nn.Linear(
             num_res_net_features, num_image_features)
+        return res_net
+
+    @staticmethod
+    def _init_finetuned_res_net(num_image_features: int, weights_path: str) -> models.ResNet:
+        res_net = models.resnet50()
+        encoder_state_dict = torch.load(weights_path)
+
+        model_state_dict = res_net.state_dict()
+        # Filter out the last layer from the loaded state dict
+        filtered_encoder_state_dict = {k: v for k, v in encoder_state_dict.items(
+        ) if k in model_state_dict and model_state_dict[k].shape == v.shape}
+        model_state_dict.update(filtered_encoder_state_dict)
+        res_net.load_state_dict(model_state_dict, strict=False)
+
+        num_res_net_features = res_net.fc.in_features
+        res_net.fc = nn.Linear(num_res_net_features, num_image_features)
+
         return res_net
 
     @staticmethod
@@ -81,8 +98,8 @@ class VisionRobotNet(nn.Module):
                     nn.init.constant_(m.bias, 0)
 
     def forward(self, img_right: torch.Tensor, img_left: torch.Tensor, x: torch.Tensor):
-        img_right_features = self.cnn_right(img_right)
-        img_left_features = self.cnn_left(img_left)
+        img_right_features = self.cnn(img_right)
+        img_left_features = self.cnn(img_left)
 
         x = torch.cat((img_left_features, img_right_features, x), dim=-1)
 
