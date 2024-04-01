@@ -1,10 +1,15 @@
 #!/usr/bin/bash
 
-TRAIN_AUTOENCODER=true
-TRAIN_FORCE_ESTIMATION=false
+TRAIN_AUTOENCODER=false
+TRAIN_FORCE_ESTIMATION=true
 
 if $TRAIN_FORCE_ESTIMATION; then
-    python train.py --batch_size 8 --lr 0.00001 --model res_net --num_epochs 50 --force_runs 1 2 --no_force_runs 1 4
+    python train.py --batch_size 8 \
+        --lr 0.00001 \
+        --model weights/auto_encoder/run_2_res_net_epochs_30/best_params.pth \
+        --num_epochs 50 \
+        --force_runs 1 2 \
+        --no_force_runs 1 4
 fi
 
 if $TRAIN_AUTOENCODER; then
