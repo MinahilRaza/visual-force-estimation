@@ -1,17 +1,13 @@
-import os
 from typing import List
 import torch
-import torch.nn as nn
-from torchvision import transforms
 import argparse
 
 from torch.utils.data import DataLoader
 
 from util import load_dataset, apply_scaling_to_datasets, create_weights_path
 from dataset import VisionRobotDataset
-from transforms import CropBottom
 from models.vision_robot_net import VisionRobotNet
-from trainer.trainer import Trainer, LRSchedulerConfig
+from trainer.trainer import ForceEstimationTrainer, LRSchedulerConfig
 import constants
 
 from torch.utils.tensorboard import SummaryWriter
@@ -32,24 +28,8 @@ def parse_cmd_line() -> argparse.Namespace:
 
 
 def train(args: argparse.Namespace):
-
-    train_transform = transforms.Compose([
-        transforms.RandomResizedCrop((224, 224)),
-        transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(
-            brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-
-    test_transform = transforms.Compose([
-        transforms.Resize((256, 256)),
-        CropBottom((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-
-    data_transforms = {"train": train_transform, "test": test_transform}
+    data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
+                       "test": constants.RES_NET_TRAIN_TRANSFORM}
     run_nums = {"train": [args.force_runs, args.no_force_runs],
                 "test": [[9, 10], []]}
 
@@ -92,15 +72,15 @@ def train(args: argparse.Namespace):
 
     weights_dir = create_weights_path(args.model, args.num_epochs)
     lr_scheduler_config = LRSchedulerConfig() if args.lr_scheduler else None
-    trainer = Trainer(model,
-                      data_loaders,
-                      device,
-                      criterion="mse",
-                      lr=args.lr,
-                      regularized=True,
-                      weights_dir=weights_dir,
-                      writer=writer,
-                      lr_scheduler_config=lr_scheduler_config)
+    trainer = ForceEstimationTrainer(model,
+                                     data_loaders,
+                                     device,
+                                     criterion="mse",
+                                     lr=args.lr,
+                                     regularized=True,
+                                     weights_dir=weights_dir,
+                                     writer=writer,
+                                     lr_scheduler_config=lr_scheduler_config)
     trainer.train(num_epochs=args.num_epochs)
 
 
