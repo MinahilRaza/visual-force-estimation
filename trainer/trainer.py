@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict
 from tqdm import tqdm
 
 import torch
@@ -9,13 +9,15 @@ from torch.utils.tensorboard import SummaryWriter
 
 from loss import RMSELoss
 
+from abc import ABC, abstractmethod
+
 
 class LRSchedulerConfig(object):
     step_size = 20
     gamma = 0.1
 
 
-class Trainer():
+class TrainerBase(ABC):
     def __init__(self,
                  model: nn.Module,
                  data_loaders: dict[DataLoader],
@@ -63,6 +65,10 @@ class Trainer():
 
         self.writer = writer
 
+    @abstractmethod
+    def run_model(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+        pass
+
     def train(self, num_epochs: int):
         best_acc = float('inf')
         epoch_logs = []
@@ -83,14 +89,11 @@ class Trainer():
 
                 with torch.set_grad_enabled(phase == "train"):
                     for batch in tqdm(self.data_loaders[phase]):
-                        img_left = batch["img_left"].to(self.device)
-                        img_right = batch["img_right"].to(self.device)
-                        features = batch["features"].to(self.device)
                         target = batch["target"].to(self.device)
-
-                        out = self.model(img_left, img_right, features)
+                        out = self.run_model(batch)
 
                         loss = self.criterion(out, target)
+
                         acc = self.acc_module(out, target)
                         total_loss_epoch += loss.item()
                         total_acc_epoch += acc.item()
@@ -132,3 +135,17 @@ class Trainer():
             file.write(f"Best Acc: {best_acc}\n")
             for i, log in enumerate(epoch_logs):
                 file.write(f"Epoch {i}: {log}\n")
+
+
+class AutoEncoderTrainer(TrainerBase):
+    def run_model(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+        img = batch["img"].to(self.device)
+        return self.model(img)
+
+
+class ForceEstimationTrainer(TrainerBase):
+    def run_model(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+        img_left = batch["img_left"].to(self.device)
+        img_right = batch["img_right"].to(self.device)
+        features = batch["features"].to(self.device)
+        return self.model(img_left, img_right, features)
