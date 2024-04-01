@@ -26,7 +26,13 @@ def get_img_paths(cam: str, excel_df: pd.DataFrame) -> List[str]:
     return img_paths
 
 
-def load_data(runs: dict[str, List[int]], data_dir: str, create_plots: bool = False) -> Tuple[np.ndarray, np.ndarray, List[str], List[str]]:
+def load_data(runs: dict[str, List[int]],
+              data_dir: str,
+              create_plots: bool = False,
+              crop_runs: bool = True) -> Tuple[np.ndarray,
+                                               np.ndarray,
+                                               List[str],
+                                               List[str]]:
     assert isinstance(runs, dict), f"{runs=}"
 
     all_X = []
@@ -50,16 +56,28 @@ def load_data(runs: dict[str, List[int]], data_dir: str, create_plots: bool = Fa
                 forces_arr = excel_df[constants.TARGET_COLUMNS].to_numpy()
                 plot_forces(forces_arr, run_nr=run, policy=policy, pdf=False)
 
-            for times in constants.START_END_TIMES[policy][run]:
-                start = times[0]
-                end = times[1]
-                actual_data_df = excel_df.iloc[start:end, :]
+            if crop_runs:
+                for times in constants.START_END_TIMES[policy][run]:
+                    start = times[0]
+                    end = times[1]
+                    actual_data_df = excel_df.iloc[start:end, :]
 
-                X = actual_data_df[constants.FEATURE_COLUMS +
-                                   constants.VELOCITY_COLUMNS].to_numpy()
-                y = actual_data_df[constants.TARGET_COLUMNS].to_numpy()
-                img_left_paths = get_img_paths("Left", actual_data_df)
-                img_right_paths = get_img_paths("Right", actual_data_df)
+                    X = actual_data_df[constants.FEATURE_COLUMS +
+                                       constants.VELOCITY_COLUMNS].to_numpy()
+                    y = actual_data_df[constants.TARGET_COLUMNS].to_numpy()
+                    img_left_paths = get_img_paths("Left", actual_data_df)
+                    img_right_paths = get_img_paths("Right", actual_data_df)
+
+                    all_X.append(X)
+                    all_y.append(y)
+                    all_img_left_paths += img_left_paths
+                    all_img_right_paths += img_right_paths
+            else:
+                X = excel_df[constants.FEATURE_COLUMS +
+                             constants.VELOCITY_COLUMNS].to_numpy()
+                y = excel_df[constants.TARGET_COLUMNS].to_numpy()
+                img_left_paths = get_img_paths("Left", excel_df)
+                img_right_paths = get_img_paths("Right", excel_df)
 
                 all_X.append(X)
                 all_y.append(y)
@@ -101,7 +119,8 @@ def set_velocity(df: pd.DataFrame, position_col: str, velocity_col: str):
 def load_dataset(path: str,
                  force_policy_runs: List[int],
                  no_force_policy_runs: List[int],
-                 create_plots: bool = False):
+                 create_plots: bool = False,
+                 crop_runs: bool = True):
     assert os.path.isdir(path), f"{path} is not a directory"
     assert os.path.exists(os.path.join(path, "images")), \
         f"{path} does not contain an images directory"
@@ -115,7 +134,7 @@ def load_dataset(path: str,
         "no_force_policy": no_force_policy_runs
     }
 
-    return load_data(runs, roll_out_dir, create_plots=create_plots)
+    return load_data(runs, roll_out_dir, create_plots=create_plots, crop_runs=crop_runs)
 
 
 def apply_scaling_to_datasets(train_dataset: Dataset, test_dataset: Dataset) -> None:
