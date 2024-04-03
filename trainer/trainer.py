@@ -39,9 +39,11 @@ class TrainerBase(ABC):
         assert isinstance(criterion, str), f"{criterion=}"
         self.criterion_name = criterion
         if self.criterion_name == "mse":
-            self.criterion = nn.MSELoss().to(device)
+            self.criterion = nn.MSELoss()
+            self.criterion.to(device)
         elif self.criterion_name == "rmse":
-            self.criterion = RMSELoss().to(device)
+            self.criterion = RMSELoss()
+            self.criterion.to(device)
         else:
             raise ValueError(f"Invalid Criterion specified: {criterion}")
 
@@ -57,6 +59,7 @@ class TrainerBase(ABC):
             self.scheduler = None
 
         self.acc_module = RMSELoss()
+        self.acc_module.to(device)
 
         self.weights_dir = weights_dir
         os.makedirs(weights_dir, exist_ok=True)
@@ -70,6 +73,7 @@ class TrainerBase(ABC):
         pass
 
     def train(self, num_epochs: int):
+        scaler = torch.cuda.amp.GradScaler()
         best_acc = float('inf')
         epoch_logs = []
         for i in range(num_epochs):
@@ -90,20 +94,24 @@ class TrainerBase(ABC):
                 with torch.set_grad_enabled(phase == "train"):
                     for batch in tqdm(self.data_loaders[phase]):
                         target = batch["target"].to(self.device)
-                        out = self.run_model(batch)
+                        with torch.cuda.amp.autocast():
+                            out = self.run_model(batch)
+                            assert out.dtype == torch.float16, f"{out.dtype}"
 
-                        loss = self.criterion(out, target)
-
-                        acc = self.acc_module(out, target)
-                        total_loss_epoch += loss.item()
-                        total_acc_epoch += acc.item()
+                            loss: torch.Tensor = self.criterion(
+                                out, target)
+                            acc: torch.Tensor = self.acc_module(
+                                out, target)
+                            total_loss_epoch += loss.item()
+                            total_acc_epoch += acc.item()
 
                         if phase == "train":
-                            self.optimizer.zero_grad()
-                            loss.backward()
-                            self.optimizer.step()
-                        if phase == "train" and self.scheduler:
-                            self.scheduler.step()
+                            scaler.scale(loss).backward()
+                            scaler.step(self.optimizer)
+                            scaler.update()
+                            self.optimizer.zero_grad(set_to_none=True)
+                            if self.scheduler:
+                                self.scheduler.step()
 
                 avg_loss_epoch = total_loss_epoch / \
                     len(self.data_loaders[phase])
@@ -123,8 +131,8 @@ class TrainerBase(ABC):
             epoch_logs.append({
                 "Test Loss": loss_phase['test'].item(),
                 "Test RMSE": acc_phase['test'].item()})
-            print(f"Train Loss: {loss_phase['train'].item()}\t \
-                Test Loss: {loss_phase['test'].item()} Test RMSE: {acc_phase['test'].item()}")
+            print(f"Train Loss: {loss_phase['train'].item():.2f}\t \
+                Test Loss: {loss_phase['test'].item():.2f} Test RMSE: {acc_phase['test'].item():.2f}")
         torch.save(self.model.state_dict(), self.save_path_last)
         self.save_logs(epoch_logs, best_acc)
         self.writer.flush()
