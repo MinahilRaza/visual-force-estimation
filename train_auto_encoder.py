@@ -26,8 +26,8 @@ def train():
     # run_nums = {"train": [[1, 2, 3, 4, 6, 8, 9, 10], [1, 3]],
     #             "test": [[11, 13], [4]]}
 
-    run_nums = {"train": [[1], [1]],
-                "test": [[11], [4]]}
+    run_nums = {"train": [[1], []],
+                "test": [[], [4]]}
 
     data_dir = "data"
     sets = ["train", "test"]
