@@ -62,6 +62,9 @@ class VisionRobotNet(nn.Module):
         model_state_dict.update(filtered_encoder_state_dict)
         res_net.load_state_dict(model_state_dict, strict=False)
 
+        for p in res_net.parameters():
+            p.requires_grad = False
+
         num_res_net_features = res_net.fc.in_features
         res_net.fc = nn.Linear(num_res_net_features, num_image_features)
 
