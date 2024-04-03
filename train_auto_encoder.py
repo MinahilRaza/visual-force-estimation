@@ -16,6 +16,7 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("--batch_size", required=True, type=int)
     parser.add_argument("--lr", required=True, type=float)
     parser.add_argument("--num_epochs", required=True, type=int)
+    parser.add_argument("--base_model", required=True, type=str)
     return parser.parse_args()
 
 
@@ -48,8 +49,9 @@ def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(f"[INFO] Using Device: {device}")
+    print(f"[INFO] Base Model: {args.base_model}")
 
-    model = ResNetAutoencoder(use_pretrained=True)
+    model = ResNetAutoencoder(base_model=args.base_model, use_pretrained=True)
     model.to(device)
 
     weights_dir = util.create_weights_path(

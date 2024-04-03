@@ -26,14 +26,21 @@ class UpSampleBlock(nn.Module):
 
 
 class ResNetAutoencoder(nn.Module):
-    def __init__(self, use_pretrained: bool):
+    def __init__(self, base_model: str, use_pretrained: bool):
         super().__init__()
 
-        self.cnn_version = "res_net"
+        self.cnn_version = base_model
 
-        resnet_kwargs = {
-            "weights": "IMAGENET1K_V1"} if use_pretrained else {}
-        self.res_net = models.resnet50(**resnet_kwargs)
+        if base_model == 'resnet50':
+            resnet_model = models.resnet50
+        elif base_model == 'resnet18':
+            resnet_model = models.resnet18
+        else:
+            raise ValueError("Unsupported base model type")
+
+        resnet_kwargs = {"weights": "IMAGENET1K_V1"} if use_pretrained else {}
+        self.res_net = resnet_model(**resnet_kwargs)
+
         if use_pretrained:
             for param in self.res_net.parameters():
                 param.requires_grad = False
@@ -42,20 +49,36 @@ class ResNetAutoencoder(nn.Module):
 
         self.encoder = nn.Sequential(*list(self.res_net.children())[:-2])
 
-        self.decoder = nn.Sequential(
-            # Corresponds to the last block of ResNet-50
-            UpSampleBlock(2048, 1024),
-            UpSampleBlock(1024, 512),
-            UpSampleBlock(512, 256),
-            UpSampleBlock(256, 128),
-            UpSampleBlock(128, 64),
-            nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            # Original ResNet starts with a 7x7 conv
-            nn.Conv2d(64, 3, kernel_size=7, stride=2, padding=3),
-            nn.Sigmoid()  # input images are normalized to [0, 1]
-        )
+        if base_model == 'resnet50':
+            decoder_blocks = [UpSampleBlock(2048, 1024),
+                              UpSampleBlock(1024, 512),
+                              UpSampleBlock(512, 256),
+                              UpSampleBlock(256, 128),
+                              UpSampleBlock(128, 64),
+                              nn.ConvTranspose2d(
+                                  64, 64, kernel_size=2, stride=2),
+                              nn.BatchNorm2d(64),
+                              nn.ReLU(inplace=True),
+                              # Original ResNet starts with a 7x7 conv
+                              nn.Conv2d(64, 3, kernel_size=7,
+                                        stride=2, padding=3),
+                              nn.Sigmoid()]
+        else:
+            decoder_blocks = [UpSampleBlock(512, 256),
+                              UpSampleBlock(256, 128),
+                              UpSampleBlock(128, 64),
+                              UpSampleBlock(64, 32),
+                              UpSampleBlock(32, 16),
+                              nn.ConvTranspose2d(
+                                  16, 16, kernel_size=2, stride=2),
+                              nn.BatchNorm2d(16),
+                              nn.ReLU(inplace=True),
+                              # Original ResNet starts with a 7x7 conv
+                              nn.Conv2d(16, 3, kernel_size=7,
+                                        stride=2, padding=3),
+                              nn.Sigmoid()]
+
+        self.decoder = nn.Sequential(*decoder_blocks)
 
     def forward(self, x):
         x = self.encoder(x)
@@ -64,7 +87,7 @@ class ResNetAutoencoder(nn.Module):
 
 
 if __name__ == "__main__":
-    ae = ResNetAutoencoder(use_pretrained=True)
+    ae = ResNetAutoencoder(base_model="resnet18", use_pretrained=True)
     inp = torch.randn((8, 3, 224, 224))
     out = ae(inp)
     print(f"{out.shape=}")
