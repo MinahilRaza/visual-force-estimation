@@ -52,7 +52,7 @@ class VisionRobotNet(nn.Module):
 
     @staticmethod
     def _init_finetuned_res_net(num_image_features: int, weights_path: str) -> models.ResNet:
-        res_net = models.resnet50()
+        res_net = models.resnet50(weights=None)
         encoder_state_dict = torch.load(weights_path)
 
         model_state_dict = res_net.state_dict()
