@@ -34,6 +34,11 @@ class ResNetAutoencoder(nn.Module):
         resnet_kwargs = {
             "weights": "IMAGENET1K_V1"} if use_pretrained else {}
         self.res_net = models.resnet50(**resnet_kwargs)
+        if use_pretrained:
+            for param in self.res_net.parameters():
+                param.requires_grad = False
+            for param in self.res_net.layer4.parameters():
+                param.requires_grad = True
 
         self.encoder = nn.Sequential(*list(self.res_net.children())[:-2])
 
