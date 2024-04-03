@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
-TRAIN_AUTOENCODER=false
-TRAIN_FORCE_ESTIMATION=true
+TRAIN_AUTOENCODER=true
+TRAIN_FORCE_ESTIMATION=false
 
 if $TRAIN_FORCE_ESTIMATION; then
     python train.py --batch_size 8 \
