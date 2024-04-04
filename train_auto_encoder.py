@@ -27,7 +27,7 @@ def train():
     # run_nums = {"train": [[1, 2, 3, 4, 6, 8, 9, 10], [1, 3]],
     #             "test": [[11, 13], [4]]}
 
-    run_nums = {"train": [[1], []],
+    run_nums = {"train": [[1], [1]],
                 "test": [[], [4]]}
 
     data_dir = "data"
@@ -55,7 +55,7 @@ def train():
     model.to(device)
 
     weights_dir = util.create_weights_path(
-        "res_net", args.num_epochs, base_dir="weights/auto_encoder")
+        args.base_model, args.num_epochs, base_dir="weights/auto_encoder")
     lr_scheduler_config = None
     writer = SummaryWriter()
 
