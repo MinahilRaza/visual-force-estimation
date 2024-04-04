@@ -26,8 +26,8 @@ class UpSampleBlock(nn.Module):
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
-        self.conv1 = DepthwiseSeparableConv(out_channels, out_channels,
-                                            kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(out_channels, out_channels,
+                               kernel_size=3, stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU(inplace=True)
 
@@ -69,13 +69,13 @@ class ResNetAutoencoder(nn.Module):
                               UpSampleBlock(512, 256),
                               UpSampleBlock(256, 128),
                               UpSampleBlock(128, 64),
-                              nn.ConvTranspose2d(
-                                  64, 64, kernel_size=2, stride=2),
-                              nn.BatchNorm2d(64),
-                              nn.ReLU(inplace=True),
-                              # Original ResNet starts with a 7x7 conv
-                              nn.Conv2d(64, 3, kernel_size=7,
-                                        stride=2, padding=3),
+                              #   nn.ConvTranspose2d(
+                              #       64, 64, kernel_size=2, stride=2),
+                              #   nn.BatchNorm2d(64),
+                              #   nn.ReLU(inplace=True),
+                              # Original ResNet should start with a 7x7 conv
+                              nn.Conv2d(64, 3, kernel_size=3,
+                                        stride=1, padding=1),
                               nn.Sigmoid()]
         else:
             decoder_blocks = [UpSampleBlock(512, 256),
@@ -102,9 +102,9 @@ class ResNetAutoencoder(nn.Module):
 
 if __name__ == "__main__":
     ae = ResNetAutoencoder(base_model="resnet18", use_pretrained=True)
-    inp = torch.randn((8, 3, 224, 224))
+    inp = torch.randn((4, 3, 224, 224))
     out = ae(inp)
-    print(f"{out.shape=}")
+    assert not torch.isnan(out).any()
     loss = torch.nn.functional.mse_loss(inp, out)
     print(f"{loss=}")
     loss.backward()
