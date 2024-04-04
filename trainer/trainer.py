@@ -68,6 +68,11 @@ class TrainerBase(ABC):
 
         self.writer = writer
 
+    @property
+    @abstractmethod
+    def task(self):
+        pass
+
     @abstractmethod
     def run_model(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
         pass
@@ -112,7 +117,6 @@ class TrainerBase(ABC):
                             self.optimizer.zero_grad(set_to_none=True)
                             if self.scheduler:
                                 self.scheduler.step()
-
                 avg_loss_epoch = total_loss_epoch / \
                     len(self.data_loaders[phase])
                 avg_acc_epoch = total_acc_epoch / len(self.data_loaders[phase])
@@ -139,6 +143,7 @@ class TrainerBase(ABC):
 
     def save_logs(self, epoch_logs: List[str], best_acc: float) -> None:
         with open(os.path.join(self.weights_dir, "logs.txt"), "w", encoding="utf-8") as file:
+            file.write(f"Task: {self.task}\n")
             file.write(f"CNN Model: {self.model.cnn_version}\n")
             file.write(f"Best Acc: {best_acc}\n")
             for i, log in enumerate(epoch_logs):
@@ -146,12 +151,16 @@ class TrainerBase(ABC):
 
 
 class AutoEncoderTrainer(TrainerBase):
+    task = "auto_encoder"
+
     def run_model(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
         img = batch["img"].to(self.device)
         return self.model(img)
 
 
 class ForceEstimationTrainer(TrainerBase):
+    task = "force_estimation"
+
     def run_model(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
         img_left = batch["img_left"].to(self.device)
         img_right = batch["img_right"].to(self.device)
