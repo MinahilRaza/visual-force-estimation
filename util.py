@@ -155,6 +155,13 @@ def create_weights_path(model: str, num_epochs: int, base_dir: str = "weights") 
     """
     assert isinstance(model, str)
     assert isinstance(num_epochs, int)
+    if os.path.isfile(model):
+        dir_name = model.split("/")[2]
+        cnn_name = dir_name.split("_")[2]
+        model_name = f"pretrained_{cnn_name}"
+    else:
+        model_name = model
+
     base_path = Path(base_dir)
     if not base_path.exists():
         base_path.mkdir(parents=True, exist_ok=True)
@@ -168,7 +175,7 @@ def create_weights_path(model: str, num_epochs: int, base_dir: str = "weights") 
                     counts.append(int(parts[1]))
         highest_count = max(counts) + 1 if counts else 1
 
-    run_name = f"run_{highest_count}_{model}_epochs_{num_epochs}"
+    run_name = f"run_{highest_count}_{model_name}_epochs_{num_epochs}"
     new_dir_path = base_path / run_name
     return str(new_dir_path)
 
