@@ -31,7 +31,7 @@ def train(args: argparse.Namespace):
     data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
                        "test": constants.RES_NET_TRAIN_TRANSFORM}
     run_nums = {"train": [args.force_runs, args.no_force_runs],
-                "test": [[9, 10], []]}
+                "test": [[9, 10], [3]]}
 
     hparams = {
         'batch_size': args.batch_size,
