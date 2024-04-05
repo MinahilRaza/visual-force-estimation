@@ -1,4 +1,5 @@
 import os
+import socket
 import argparse
 import torch
 from torch.utils.data import DataLoader
@@ -25,11 +26,13 @@ def train():
     args = parse_cmd_line()
     data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
                        "test": constants.RES_NET_TRAIN_TRANSFORM}
-    # run_nums = {"train": [[1, 2, 3, 4, 6, 8, 9, 10], [1, 3]],
-    #             "test": [[11, 13], [4]]}
 
-    run_nums = {"train": [[1, 2], [1]],
-                "test": [[], [4]]}
+    if socket.gethostname() == "Tim-ThinkPad":
+        run_nums = {"train": [[1, 2], [1]],
+                    "test": [[], [4]]}
+    else:
+        run_nums = {"train": [[1, 2, 3, 4, 6, 8, 9, 10], [1, 3]],
+                    "test": [[11, 13], [4]]}
 
     data_dir = "data"
     sets = ["train", "test"]
