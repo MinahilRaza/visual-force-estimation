@@ -155,7 +155,7 @@ def create_weights_path(model: str, num_epochs: int, base_dir: str = "weights") 
     """
     assert isinstance(model, str)
     assert isinstance(num_epochs, int)
-    if os.path.isfile(model):
+    if os.path.isdir(model):
         dir_name = model.split("/")[2]
         cnn_name = dir_name.split("_")[2]
         model_name = f"pretrained_{cnn_name}"

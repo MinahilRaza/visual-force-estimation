@@ -1,7 +1,10 @@
+import os
 import torch
 import torch.nn as nn
 
 from torchvision import models
+
+import constants
 
 
 class VisionRobotNet(nn.Module):
@@ -51,8 +54,10 @@ class VisionRobotNet(nn.Module):
         return res_net
 
     @staticmethod
-    def _init_finetuned_res_net(num_image_features: int, weights_path: str) -> models.ResNet:
+    def _init_finetuned_res_net(num_image_features: int, weights_dir: str) -> models.ResNet:
+        assert os.path.isdir(weights_dir), f"{weights_dir=}"
         res_net = models.resnet50(weights=None)
+        weights_path = os.path.join(weights_dir, constants.ENCODER_WEIGHTS_FN)
         encoder_state_dict = torch.load(weights_path)
 
         model_state_dict = res_net.state_dict()
