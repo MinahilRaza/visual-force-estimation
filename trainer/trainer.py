@@ -1,5 +1,8 @@
 import os
+import socket
+
 from typing import List, Optional, Dict
+from abc import ABC, abstractmethod
 from tqdm import tqdm
 
 import torch
@@ -8,8 +11,6 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from loss import RMSELoss
-
-from abc import ABC, abstractmethod
 
 
 class LRSchedulerConfig(object):
@@ -67,6 +68,7 @@ class TrainerBase(ABC):
         self.save_path_last = os.path.join(weights_dir, "last_params.pth")
 
         self.writer = writer
+        self.hostname = socket.gethostname()
 
     @property
     @abstractmethod
@@ -144,6 +146,7 @@ class TrainerBase(ABC):
     def save_logs(self, epoch_logs: List[str], best_acc: float) -> None:
         with open(os.path.join(self.weights_dir, "logs.txt"), "w", encoding="utf-8") as file:
             file.write(f"Task: {self.task}\n")
+            file.write(f"Host: {self.hostname}\n")
             file.write(f"CNN Model: {self.model.cnn_version}\n")
             file.write(f"Best Acc: {best_acc}\n")
             for i, log in enumerate(epoch_logs):
