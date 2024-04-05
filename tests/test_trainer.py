@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 import torch
 import torch.nn as nn
 from trainer.trainer import AutoEncoderTrainer, ForceEstimationTrainer

@@ -27,11 +27,12 @@ def parse_cmd_line() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def train(args: argparse.Namespace):
+def train():
+    args = parse_cmd_line()
     data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
                        "test": constants.RES_NET_TRAIN_TRANSFORM}
     run_nums = {"train": [args.force_runs, args.no_force_runs],
-                "test": [[9, 10], [3]]}
+                "test": [[9, 10], []]}
 
     hparams = {
         'batch_size': args.batch_size,
@@ -85,5 +86,4 @@ def train(args: argparse.Namespace):
 
 
 if __name__ == "__main__":
-    args = parse_cmd_line()
-    train(args)
+    train()
