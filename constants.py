@@ -33,6 +33,11 @@ VELOCITY_COLUMNS = \
     + [f'PSM{nr}_joint_{joint}_v' for joint in range(1, 7) for nr in [1, 2]] \
     + [f'PSM{nr}_jaw_angle_v' for nr in [1, 2]]
 
+ACCELERATION_COLUMNS = \
+    [f'PSM{nr}_ee_a_{axis}' for axis in ['x', 'y', 'z'] for nr in [1, 2]] \
+    + [f'PSM{nr}_joint_{joint}_a' for joint in range(1, 7) for nr in [1, 2]] \
+    + [f'PSM{nr}_jaw_angle_a' for nr in [1, 2]]
+
 TARGET_COLUMNS = ['Force_x_smooth', 'Force_y_smooth', 'Force_z_smooth']
 
 START_END_TIMES = {
@@ -64,7 +69,7 @@ EXCEL_FILE_NAMES = {
 }
 
 NUM_IMAGE_FEATURES = 30
-NUM_ROBOT_FEATURES = 58
+NUM_ROBOT_FEATURES = 78
 CNN_MODEL_VERSION = "efficientnet_v2_m"
 
 RES_NET_TRAIN_TRANSFORM = transforms.Compose([

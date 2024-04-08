@@ -29,10 +29,11 @@ def get_img_paths(cam: str, excel_df: pd.DataFrame) -> List[str]:
 def load_data(runs: dict[str, List[int]],
               data_dir: str,
               create_plots: bool = False,
-              crop_runs: bool = True) -> Tuple[np.ndarray,
-                                               np.ndarray,
-                                               List[str],
-                                               List[str]]:
+              crop_runs: bool = True,
+              use_acceleration: bool = False) -> Tuple[np.ndarray,
+                                                       np.ndarray,
+                                                       List[str],
+                                                       List[str]]:
     assert isinstance(runs, dict), f"{runs=}"
 
     all_X = []
@@ -50,7 +51,13 @@ def load_data(runs: dict[str, List[int]],
             excel_file_path = os.path.join(data_dir, excel_file_name)
             excel_df = pd.read_excel(excel_file_path, usecols=relevant_cols)
             excel_df = calculate_velocity(excel_df)
+            if use_acceleration:
+                excel_df = calculate_acceleration(excel_df)
+
             excel_df = excel_df.drop(constants.TIME_COLUMN, axis=1)
+            X_cols = constants.FEATURE_COLUMS + constants.VELOCITY_COLUMNS
+            if use_acceleration:
+                X_cols += constants.ACCELERATION_COLUMNS
 
             if create_plots:
                 forces_arr = excel_df[constants.TARGET_COLUMNS].to_numpy()
@@ -62,8 +69,7 @@ def load_data(runs: dict[str, List[int]],
                     end = times[1]
                     actual_data_df = excel_df.iloc[start:end, :]
 
-                    X = actual_data_df[constants.FEATURE_COLUMS +
-                                       constants.VELOCITY_COLUMNS].to_numpy()
+                    X = actual_data_df[X_cols].to_numpy()
                     y = actual_data_df[constants.TARGET_COLUMNS].to_numpy()
                     img_left_paths = get_img_paths("Left", actual_data_df)
                     img_right_paths = get_img_paths("Right", actual_data_df)
@@ -73,8 +79,7 @@ def load_data(runs: dict[str, List[int]],
                     all_img_left_paths += img_left_paths
                     all_img_right_paths += img_right_paths
             else:
-                X = excel_df[constants.FEATURE_COLUMS +
-                             constants.VELOCITY_COLUMNS].to_numpy()
+                X = excel_df[X_cols].to_numpy()
                 y = excel_df[constants.TARGET_COLUMNS].to_numpy()
                 img_left_paths = get_img_paths("Left", excel_df)
                 img_right_paths = get_img_paths("Right", excel_df)
@@ -88,6 +93,33 @@ def load_data(runs: dict[str, List[int]],
     all_y = np.concatenate(all_y, axis=0)
 
     return all_X, all_y, all_img_left_paths, all_img_right_paths
+
+
+def calculate_acceleration(df: pd.DataFrame) -> pd.DataFrame:
+    # Ensure velocity is calculated first
+    assert all(column in df.columns for column in constants.VELOCITY_COLUMNS)
+
+    for nr in [1, 2]:
+        for axis in ['x', 'y', 'z']:
+            velocity_col = f'PSM{nr}_ee_v_{axis}'
+            acceleration_col = f'PSM{nr}_ee_a_{axis}'
+            set_acceleration(df, velocity_col, acceleration_col)
+        for joint in range(1, 7):
+            velocity_col = f'PSM{nr}_joint_{joint}_v'
+            acceleration_col = f'PSM{nr}_joint_{joint}_a'
+            set_acceleration(df, velocity_col, acceleration_col)
+        velocity_col = f'PSM{nr}_jaw_angle_v'
+        acceleration_col = f'PSM{nr}_jaw_angle_a'
+        set_acceleration(df, velocity_col, acceleration_col)
+
+    return df
+
+
+def set_acceleration(df: pd.DataFrame, velocity_col: str, acceleration_col: str):
+    df[acceleration_col] = df[velocity_col].diff() / df["Time (Seconds)"].diff()
+    df.loc[df.index[0], acceleration_col] = 0
+    assert len(df[acceleration_col]) == len(df[velocity_col])
+    assert df[acceleration_col].isnull().sum() == 0
 
 
 def calculate_velocity(df: pd.DataFrame) -> pd.DataFrame:
@@ -120,7 +152,11 @@ def load_dataset(path: str,
                  force_policy_runs: List[int],
                  no_force_policy_runs: List[int],
                  create_plots: bool = False,
-                 crop_runs: bool = True):
+                 crop_runs: bool = True,
+                 use_acceleration: bool = True) -> Tuple[np.ndarray,
+                                                         np.ndarray,
+                                                         List[str],
+                                                         List[str]]:
     assert os.path.isdir(path), f"{path} is not a directory"
     assert os.path.exists(os.path.join(path, "images")), \
         f"{path} does not contain an images directory"
@@ -134,7 +170,7 @@ def load_dataset(path: str,
         "no_force_policy": no_force_policy_runs
     }
 
-    return load_data(runs, roll_out_dir, create_plots=create_plots, crop_runs=crop_runs)
+    return load_data(runs, roll_out_dir, create_plots=create_plots, crop_runs=crop_runs, use_acceleration=use_acceleration)
 
 
 def apply_scaling_to_datasets(train_dataset: Dataset, test_dataset: Dataset) -> None:
@@ -206,7 +242,7 @@ def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool):
 
 if __name__ == "__main__":
     all_X, all_y, all_img_left_paths, all_img_right_paths = load_dataset(
-        path="data", force_policy_runs=[1, 2, 3, 4, 6], no_force_policy_runs=[1, 4], create_plots=True)
+        path="data", force_policy_runs=[1, 2, 3, 4, 6], no_force_policy_runs=[1, 4], create_plots=False, )
 
     assert all_X.shape == (2549, 44), f"{all_X.shape=}"
     assert all_y.shape == (2549, 3)

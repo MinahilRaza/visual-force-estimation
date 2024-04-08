@@ -29,6 +29,7 @@ class TrainerBase(ABC):
                  regularized: bool,
                  weights_dir: str,
                  writer: SummaryWriter,
+                 use_acceleration: bool,
                  lr_scheduler_config: Optional[LRSchedulerConfig] = None) -> None:
         self.model = model
         self.data_loaders = data_loaders
@@ -72,6 +73,7 @@ class TrainerBase(ABC):
 
         self.writer = writer
         self.hostname = socket.gethostname()
+        self.use_acceleration = use_acceleration
 
     @property
     @abstractmethod
@@ -147,6 +149,8 @@ class TrainerBase(ABC):
             file.write(f"Host: {self.hostname}\n")
             file.write(f"CNN Model: {self.model.cnn_version}\n")
             file.write(f"Best Acc: {best_acc}\n")
+            file.write(
+                f"Using Acceleration Features: {self.use_acceleration}\n")
             for i, log in enumerate(epoch_logs):
                 file.write(f"Epoch {i}: {log}\n")
 

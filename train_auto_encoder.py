@@ -76,7 +76,8 @@ def train():
                                     regularized=True,
                                     weights_dir=weights_dir,
                                     writer=writer,
-                                    lr_scheduler_config=lr_scheduler_config)
+                                    lr_scheduler_config=lr_scheduler_config,
+                                    use_acceleration=args.use_acceleration)
     trainer.train(num_epochs=args.num_epochs)
     encoder_state_dict = trainer.model.encoder.state_dict()
     encoder_weights_path = os.path.join(

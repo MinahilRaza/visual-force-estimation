@@ -24,6 +24,8 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument('--no_force_runs', nargs='+',
                         type=int, help='A list of the run numbers of the NO force policy rollouts that should be used for training', required=True)
     parser.add_argument('--lr_scheduler', action='store_true', default=False)
+    parser.add_argument('--use_acceleration',
+                        action='store_true', default=False)
     return parser.parse_args()
 
 
@@ -52,10 +54,13 @@ def train():
 
     for s in sets:
         data = load_dataset(
-            data_dir, force_policy_runs=run_nums[s][0], no_force_policy_runs=run_nums[s][1])
+            data_dir,
+            force_policy_runs=run_nums[s][0],
+            no_force_policy_runs=run_nums[s][1],
+            use_acceleration=args.use_acceleration)
         dataset = VisionRobotDataset(
             *data, path=data_dir, transforms=data_transforms[s])
-        print(f"Loaded Dataset {s} with {len(dataset)} samples!")
+        print(f"[INFO] Loaded Dataset {s} with {len(dataset)} samples!")
         data_loaders[s] = DataLoader(
             dataset, batch_size=args.batch_size, drop_last=True)
 
@@ -85,7 +90,8 @@ def train():
                                      regularized=True,
                                      weights_dir=weights_dir,
                                      writer=writer,
-                                     lr_scheduler_config=lr_scheduler_config)
+                                     lr_scheduler_config=lr_scheduler_config,
+                                     use_acceleration=args.use_acceleration)
     trainer.train(num_epochs=args.num_epochs)
 
 
