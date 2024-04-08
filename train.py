@@ -29,6 +29,8 @@ def parse_cmd_line() -> argparse.Namespace:
 
 def train():
     args = parse_cmd_line()
+    print("Training Force Estimation Network")
+
     data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
                        "test": constants.RES_NET_TRAIN_TRANSFORM}
     run_nums = {"train": [args.force_runs, args.no_force_runs],
@@ -64,6 +66,8 @@ def train():
 
     print(f"[INFO] Using Device: {device}")
     print(f"[INFO] Training Model: {args.model}")
+    print(f"[INFO] Batch Size: {args.batch_size}")
+    print(f"[INFO] Learning Rate: {args.lr}")
 
     model = VisionRobotNet(cnn_model_version=args.model,
                            num_image_features=constants.NUM_IMAGE_FEATURES,

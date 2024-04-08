@@ -9,7 +9,8 @@ import util
 import constants
 from dataset import AutoEncoderDataset
 from models.auto_encoder import ResNetAutoencoder
-from trainer.trainer import AutoEncoderTrainer
+from models.var_auto_encoder import VarAutoEncoder
+from trainer.trainer import AutoEncoderTrainer, VarAutoEncoderTrainer
 
 
 def parse_cmd_line() -> argparse.Namespace:
@@ -23,6 +24,7 @@ def parse_cmd_line() -> argparse.Namespace:
 
 
 def train():
+    print("Training Auto Encoder Network")
     args = parse_cmd_line()
     data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
                        "test": constants.RES_NET_TRAIN_TRANSFORM}
@@ -31,8 +33,8 @@ def train():
         run_nums = {"train": [[1, 2], [1]],
                     "test": [[], [4]]}
     else:
-        run_nums = {"train": [[1, 2, 3, 4, 6, 8, 9, 10], [1, 3]],
-                    "test": [[11, 13], [4]]}
+        run_nums = {"train": [[1, 2, 3, 4, 6, 8, 9], [1, 4]],
+                    "test": [[10, 11], []]}
 
     data_dir = "data"
     sets = ["train", "test"]
@@ -54,8 +56,11 @@ def train():
 
     print(f"[INFO] Using Device: {device}")
     print(f"[INFO] Base Model: {args.base_model}")
+    print(f"[INFO] Batch Size: {args.batch_size}")
+    print(f"[INFO] Learning rate: {args.lr}")
 
-    model = ResNetAutoencoder(base_model=args.base_model, use_pretrained=True)
+    # model = ResNetAutoencoder(base_model=args.base_model, use_pretrained=True)
+    model = VarAutoEncoder(enc_dim=constants.NUM_IMAGE_FEATURES)
     model.to(device)
 
     weights_dir = util.create_weights_path(
@@ -63,15 +68,15 @@ def train():
     lr_scheduler_config = None
     writer = SummaryWriter()
 
-    trainer = AutoEncoderTrainer(model,
-                                 data_loaders,
-                                 device,
-                                 criterion="mse",
-                                 lr=args.lr,
-                                 regularized=True,
-                                 weights_dir=weights_dir,
-                                 writer=writer,
-                                 lr_scheduler_config=lr_scheduler_config)
+    trainer = VarAutoEncoderTrainer(model,
+                                    data_loaders,
+                                    device,
+                                    criterion="mse",
+                                    lr=args.lr,
+                                    regularized=True,
+                                    weights_dir=weights_dir,
+                                    writer=writer,
+                                    lr_scheduler_config=lr_scheduler_config)
     trainer.train(num_epochs=args.num_epochs)
     encoder_state_dict = trainer.model.encoder.state_dict()
     encoder_weights_path = os.path.join(
