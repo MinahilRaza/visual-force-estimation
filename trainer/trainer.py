@@ -1,12 +1,13 @@
 import os
 import socket
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from abc import ABC, abstractmethod
 from tqdm import tqdm
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -45,6 +46,8 @@ class TrainerBase(ABC):
         elif self.criterion_name == "rmse":
             self.criterion = RMSELoss()
             self.criterion.to(device)
+        elif self.criterion_name == "custom":
+            self.criterion = None
         else:
             raise ValueError(f"Invalid Criterion specified: {criterion}")
 
@@ -100,15 +103,10 @@ class TrainerBase(ABC):
 
                 with torch.set_grad_enabled(phase == "train"):
                     for batch in tqdm(self.data_loaders[phase]):
-                        target = batch["target"].to(self.device)
                         with torch.cuda.amp.autocast():
-                            out = self.run_model(batch)
+                            out, loss, acc = self.run_model(batch)
                             assert out.dtype == torch.float16, f"{out.dtype}"
 
-                            loss: torch.Tensor = self.criterion(
-                                out, target)
-                            acc: torch.Tensor = self.acc_module(
-                                out, target)
                             total_loss_epoch += loss.item()
                             total_acc_epoch += acc.item()
 
@@ -153,19 +151,51 @@ class TrainerBase(ABC):
                 file.write(f"Epoch {i}: {log}\n")
 
 
+def loss_function(recon_x, x, mu, logvar):
+    # MSE = F.mse_loss(recon_x, x, reduction='sum')
+    MSE = F.binary_cross_entropy(recon_x, x, reduction='sum')
+    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    return MSE + KLD
+
+
+class VarAutoEncoderTrainer(TrainerBase):
+    task = "var_auto_encoder"
+
+    def custom_loss(self, out: torch.Tensor, target: torch.Tensor, mu: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
+        recon_loss = F.mse_loss(out, target)
+        kl_divergence = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+        return recon_loss + kl_divergence
+
+    def run_model(self, batch: dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        img = batch["img"].to(self.device)
+        target = batch["target"].to(self.device)
+        out, z, mean, logvar = self.model(img)
+        loss: torch.Tensor = self.custom_loss(out, target, mean, logvar)
+        acc: torch.Tensor = self.acc_module(out, target)
+        return out, loss, acc
+
+
 class AutoEncoderTrainer(TrainerBase):
     task = "auto_encoder"
 
-    def run_model(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    def run_model(self, batch: dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         img = batch["img"].to(self.device)
-        return self.model(img)
+        target = batch["target"].to(self.device)
+        out: torch.Tensor = self.model(img)
+        loss: torch.Tensor = self.criterion(out, target)
+        acc: torch.Tensor = self.acc_module(out, target)
+        return out, loss, acc
 
 
 class ForceEstimationTrainer(TrainerBase):
     task = "force_estimation"
 
-    def run_model(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    def run_model(self, batch: dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         img_left = batch["img_left"].to(self.device)
         img_right = batch["img_right"].to(self.device)
         features = batch["features"].to(self.device)
-        return self.model(img_left, img_right, features)
+        target = batch["target"].to(self.device)
+        out = self.model(img_left, img_right, features)
+        loss: torch.Tensor = self.criterion(out, target)
+        acc: torch.Tensor = self.acc_module(out, target)
+        return out, loss, acc
