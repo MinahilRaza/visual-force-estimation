@@ -66,6 +66,12 @@ class ResNet50Enc(nn.Module):
         self.res_net = models.resnet50(weights="IMAGENET1K_V1")
         num_res_net_features = self.res_net.fc.in_features
         self.res_net.fc = nn.Linear(num_res_net_features, 2 * enc_dim)
+        for param in self.res_net.conv1.parameters():
+            param.requires_grad = False
+        for param in self.res_net.bn1.parameters():
+            param.requires_grad = False
+        for param in self.res_net.layer1.parameters():
+            param.requires_grad = False
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         x = self.res_net(x)
