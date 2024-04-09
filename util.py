@@ -3,13 +3,14 @@ from typing import List, Optional, Tuple, Dict
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import argparse
 
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import Dataset
-
+from dataset import VisionRobotDataset
 import constants
 
 
@@ -173,7 +174,9 @@ def load_dataset(path: str,
     return load_data(runs, roll_out_dir, create_plots=create_plots, crop_runs=crop_runs, use_acceleration=use_acceleration)
 
 
-def apply_scaling_to_datasets(train_dataset: Dataset, test_dataset: Dataset) -> None:
+def apply_scaling_to_datasets(train_dataset: VisionRobotDataset,
+                              test_dataset: VisionRobotDataset,
+                              normalize_targets: Optional[bool] = False) -> None:
     scaler = StandardScaler()
 
     scaler.fit(train_dataset.robot_features.numpy())
@@ -182,6 +185,15 @@ def apply_scaling_to_datasets(train_dataset: Dataset, test_dataset: Dataset) -> 
         scaler.transform(train_dataset.robot_features.numpy())).float()
     test_dataset.robot_features = torch.from_numpy(
         scaler.transform(test_dataset.robot_features.numpy())).float()
+
+    if normalize_targets:
+        target_scaler = MinMaxScaler(feature_range=(-1, 1))
+        target_scaler.fit(train_dataset.force_targets.numpy())
+
+        train_dataset.force_targets = torch.from_numpy(
+            target_scaler.transform(train_dataset.force_targets.numpy())).float()
+        test_dataset.force_targets = torch.from_numpy(
+            target_scaler.transform(test_dataset.force_targets.numpy())).float()
 
 
 def create_weights_path(model: str, num_epochs: int, base_dir: str = "weights") -> str:
@@ -238,6 +250,23 @@ def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool):
     save_path = f"plots/rollout_{policy}_{run_nr}.{'pdf' if pdf else 'png'}"
     plt.savefig(save_path)
     plt.close()
+
+
+def get_log_dir(args: argparse.Namespace) -> str:
+    if os.path.isdir(args.model):
+        cnn_name = args.model.split("/")[2]
+        model_name = f"finetuned_{cnn_name}"
+    else:
+        model_name = args.model
+    log_dir = f"runs/force_est_{model_name}_{args.num_epochs}ep_accel_{args.use_acceleration}_normalized_{args.normalize_targets}"
+    return log_dir
+
+
+def get_num_robot_features(args: argparse.Namespace) -> int:
+    if args.use_acceleration:
+        return constants.NUM_ROBOT_FEATURES_INCL_ACCEL
+    else:
+        return constants.NUM_ROBOT_FEATURES
 
 
 if __name__ == "__main__":

@@ -1,14 +1,15 @@
+import os
 from typing import List
 import torch
 import argparse
 
 from torch.utils.data import DataLoader
 
-from util import load_dataset, apply_scaling_to_datasets, create_weights_path
 from dataset import VisionRobotDataset
 from models.vision_robot_net import VisionRobotNet
 from trainer.trainer import ForceEstimationTrainer, LRSchedulerConfig
 import constants
+import util
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -25,6 +26,8 @@ def parse_cmd_line() -> argparse.Namespace:
                         type=int, help='A list of the run numbers of the NO force policy rollouts that should be used for training', required=True)
     parser.add_argument('--lr_scheduler', action='store_true', default=False)
     parser.add_argument('--use_acceleration',
+                        action='store_true', default=False)
+    parser.add_argument('--normalize_targets',
                         action='store_true', default=False)
     return parser.parse_args()
 
@@ -44,7 +47,7 @@ def train():
         'num_epochs': args.num_epochs,
         'model': args.model
     }
-    log_dir = f"runs/force_estimation_{args.model}_{args.num_epochs}_epochs_accel_{args.use_acceleration}"
+    log_dir = util.get_log_dir(args)
     writer = SummaryWriter(log_dir=log_dir)
     writer.add_custom_scalars(constants.LAYOUT)
     writer.add_hparams(hparams, {})
@@ -54,7 +57,7 @@ def train():
     data_loaders: dict[DataLoader] = {}
 
     for s in sets:
-        data = load_dataset(
+        data = util.load_dataset(
             data_dir,
             force_policy_runs=run_nums[s][0],
             no_force_policy_runs=run_nums[s][1],
@@ -65,8 +68,10 @@ def train():
         data_loaders[s] = DataLoader(
             dataset, batch_size=args.batch_size, drop_last=True)
 
-    apply_scaling_to_datasets(
-        data_loaders["train"].dataset, data_loaders["test"].dataset)
+    util.apply_scaling_to_datasets(
+        data_loaders["train"].dataset,
+        data_loaders["test"].dataset,
+        normalize_targets=args.normalize_targets)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -77,11 +82,12 @@ def train():
 
     model = VisionRobotNet(cnn_model_version=args.model,
                            num_image_features=constants.NUM_IMAGE_FEATURES,
-                           num_robot_features=constants.NUM_ROBOT_FEATURES,
+                           num_robot_features=util.get_num_robot_features(
+                               args),
                            dropout_rate=0.2)
     model.to(device)
 
-    weights_dir = create_weights_path(args.model, args.num_epochs)
+    weights_dir = util.create_weights_path(args.model, args.num_epochs)
     lr_scheduler_config = LRSchedulerConfig() if args.lr_scheduler else None
     trainer = ForceEstimationTrainer(model,
                                      data_loaders,
