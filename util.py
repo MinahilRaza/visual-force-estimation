@@ -153,10 +153,10 @@ def load_dataset(path: str,
                  no_force_policy_runs: List[int],
                  create_plots: bool = False,
                  crop_runs: bool = True,
-                 use_acceleration: bool = True) -> Tuple[np.ndarray,
-                                                         np.ndarray,
-                                                         List[str],
-                                                         List[str]]:
+                 use_acceleration: bool = False) -> Tuple[np.ndarray,
+                                                          np.ndarray,
+                                                          List[str],
+                                                          List[str]]:
     assert os.path.isdir(path), f"{path} is not a directory"
     assert os.path.exists(os.path.join(path, "images")), \
         f"{path} does not contain an images directory"

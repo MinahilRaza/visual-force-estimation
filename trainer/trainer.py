@@ -155,13 +155,6 @@ class TrainerBase(ABC):
                 file.write(f"Epoch {i}: {log}\n")
 
 
-def loss_function(recon_x, x, mu, logvar):
-    # MSE = F.mse_loss(recon_x, x, reduction='sum')
-    MSE = F.binary_cross_entropy(recon_x, x, reduction='sum')
-    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    return MSE + KLD
-
-
 class VarAutoEncoderTrainer(TrainerBase):
     task = "var_auto_encoder"
 
@@ -174,7 +167,7 @@ class VarAutoEncoderTrainer(TrainerBase):
         img = batch["img"].to(self.device)
         target = batch["target"].to(self.device)
         out, z, mean, logvar = self.model(img)
-        loss: torch.Tensor = self.custom_loss(out, target, mean, logvar)
+        loss = self.custom_loss(out, target, mean, logvar)
         acc: torch.Tensor = self.acc_module(out, target)
         return out, loss, acc
 
