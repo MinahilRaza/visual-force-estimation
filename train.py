@@ -44,7 +44,8 @@ def train():
         'num_epochs': args.num_epochs,
         'model': args.model
     }
-    writer = SummaryWriter()
+    log_dir = f"runs/force_estimation_{args.model}_{args.num_epochs}_epochs_accel_{args.use_acceleration}"
+    writer = SummaryWriter(log_dir=log_dir)
     writer.add_custom_scalars(constants.LAYOUT)
     writer.add_hparams(hparams, {})
 

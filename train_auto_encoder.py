@@ -66,7 +66,9 @@ def train():
     weights_dir = util.create_weights_path(
         args.base_model, args.num_epochs, base_dir="weights/auto_encoder") if not args.out_dir else args.out_dir
     lr_scheduler_config = None
-    writer = SummaryWriter()
+    log_dir = f"runs/var_auto_encoder_{args.base_model}_{args.num_epochs}_epochs_lr_{args.lr}"
+
+    writer = SummaryWriter(log_dir=log_dir)
 
     trainer = VarAutoEncoderTrainer(model,
                                     data_loaders,
@@ -77,7 +79,7 @@ def train():
                                     weights_dir=weights_dir,
                                     writer=writer,
                                     lr_scheduler_config=lr_scheduler_config,
-                                    use_acceleration=args.use_acceleration)
+                                    use_acceleration=False)
     trainer.train(num_epochs=args.num_epochs)
     encoder_state_dict = trainer.model.encoder.state_dict()
     encoder_weights_path = os.path.join(
