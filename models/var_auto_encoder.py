@@ -1,6 +1,6 @@
 # https://github.com/julianstastny/VAE-ResNet18-PyTorch/blob/master/model.py
 
-from typing import Tuple
+from typing import List, Optional, Tuple
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -10,14 +10,14 @@ from torchvision import models
 
 class ResizeConv2d(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size, scale_factor, mode='nearest'):
+    def __init__(self, in_channels: int, out_channels: int, kernel_size: int, scale_factor: int, mode: Optional[str] = 'nearest'):
         super().__init__()
         self.scale_factor = scale_factor
         self.mode = mode
         self.conv = nn.Conv2d(in_channels, out_channels,
                               kernel_size, stride=1, padding=1)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = F.interpolate(x, scale_factor=self.scale_factor, mode=self.mode)
         x = self.conv(x)
         return x
@@ -25,7 +25,7 @@ class ResizeConv2d(nn.Module):
 
 class BasicBlockDec(nn.Module):
 
-    def __init__(self, in_planes, stride=1):
+    def __init__(self, in_planes: int, stride: Optional[int] = 1):
         super().__init__()
 
         planes = int(in_planes/stride)
@@ -50,7 +50,7 @@ class BasicBlockDec(nn.Module):
                 nn.BatchNorm2d(planes)
             )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         out = torch.relu(self.bn2(self.conv2(x)))
         out = self.bn1(self.conv1(out))
         out += self.shortcut(x)
@@ -84,7 +84,7 @@ class ResNet50Enc(nn.Module):
 
 
 class ResNet50Dec(nn.Module):
-    def __init__(self, num_Blocks=[3, 4, 6, 3], enc_dim=10, nc=3):
+    def __init__(self, enc_dim: int, num_Blocks: Optional[List[int]] = [3, 4, 6, 3], num_channels: Optional[int] = 3):
         super(ResNet50Dec, self).__init__()
         self.in_planes = 2048
         # Linear layer to map z_dim to a spatial size that matches the start of decoding
@@ -97,10 +97,11 @@ class ResNet50Dec(nn.Module):
         self.layer1 = self._make_layer(128, num_Blocks[0], stride=2)
 
         # Final convolution to get to the desired number of channels
-        self.conv1 = ResizeConv2d(128, nc, kernel_size=3, scale_factor=2)
+        self.conv1 = ResizeConv2d(
+            128, num_channels, kernel_size=3, scale_factor=2)
         self.in_planes = 2048
 
-    def _make_layer(self, planes, num_Blocks, stride):
+    def _make_layer(self, planes: int, num_Blocks: int, stride: int) -> nn.Module:
         strides = [stride] + [1]*(num_Blocks-1)
         layers = []
         for stride in reversed(strides):
@@ -108,7 +109,7 @@ class ResNet50Dec(nn.Module):
         self.in_planes = planes
         return nn.Sequential(*layers)
 
-    def forward(self, z):
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
         x = self.linear(z)
         x = x.view(z.size(0), self.in_planes, 7, 7)
         x = self.layer4(x)
@@ -127,6 +128,7 @@ class VarAutoEncoder(nn.Module):
         super().__init__()
         self.encoder = ResNet50Enc(enc_dim)
         self.decoder = ResNet50Dec(enc_dim=enc_dim)
+        self.cnn_version = "var_auto_encoder"
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         mean, logvar = self.encoder(x)
@@ -135,7 +137,7 @@ class VarAutoEncoder(nn.Module):
         return x, z, mean, logvar
 
     @staticmethod
-    def reparameterize(mean: torch.Tensor, logvar: torch.Tensor):
+    def reparameterize(mean: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
         # in log-space, squareroot is divide by two
         std = torch.exp(logvar / 2)
         epsilon = torch.randn_like(std)
@@ -145,6 +147,6 @@ class VarAutoEncoder(nn.Module):
 if __name__ == "__main__":
     model = VarAutoEncoder(enc_dim=30)
     inp = torch.rand((8, 3, 224, 224))
-    out, z = model(inp)
+    out, z, _, _ = model(inp)
     print(f"{out.shape=}")
     print(f"{z.shape=}")
