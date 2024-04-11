@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 
 from torchvision import models
+from models.var_auto_encoder import ResNet50Enc
 
 import constants
 
@@ -56,22 +57,19 @@ class VisionRobotNet(nn.Module):
     @staticmethod
     def _init_finetuned_res_net(num_image_features: int, weights_dir: str) -> models.ResNet:
         assert os.path.isdir(weights_dir), f"{weights_dir=}"
-        res_net = models.resnet50(weights=None)
+
+        enc_model = ResNet50Enc(enc_dim=num_image_features)
         weights_path = os.path.join(weights_dir, constants.ENCODER_WEIGHTS_FN)
-        encoder_state_dict = torch.load(weights_path)
 
-        model_state_dict = res_net.state_dict()
-        # Filter out the last layer from the loaded state dict
-        filtered_encoder_state_dict = {k: v for k, v in encoder_state_dict.items(
-        ) if k in model_state_dict and model_state_dict[k].shape == v.shape}
-        model_state_dict.update(filtered_encoder_state_dict)
-        res_net.load_state_dict(model_state_dict, strict=False)
+        state_dict = torch.load(weights_path)
+        enc_model.load_state_dict(state_dict)
 
+        res_net = enc_model.res_net
         for p in res_net.parameters():
             p.requires_grad = False
 
-        num_res_net_features = res_net.fc.in_features
-        res_net.fc = nn.Linear(num_res_net_features, num_image_features)
+        num_features = res_net.fc.in_features
+        res_net.fc = nn.Linear(num_features, num_image_features)
 
         return res_net
 
