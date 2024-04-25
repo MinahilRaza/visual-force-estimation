@@ -29,6 +29,8 @@ def parse_cmd_line() -> argparse.Namespace:
                         action='store_true', default=False)
     parser.add_argument('--normalize_targets',
                         action='store_true', default=False)
+    parser.add_argument('--use_pretrained',
+                        action='store_true', default=False)
     return parser.parse_args()
 
 
@@ -79,11 +81,13 @@ def train():
     print(f"[INFO] Training Model: {args.model}")
     print(f"[INFO] Batch Size: {args.batch_size}")
     print(f"[INFO] Learning Rate: {args.lr}")
+    print(f"[INFO] Pretrained Weights: {args.use_pretrained}")
 
     model = VisionRobotNet(cnn_model_version=args.model,
                            num_image_features=constants.NUM_IMAGE_FEATURES,
                            num_robot_features=util.get_num_robot_features(
                                args),
+                           use_pretrained=args.use_pretrained,
                            dropout_rate=0.2)
     model.to(device)
 

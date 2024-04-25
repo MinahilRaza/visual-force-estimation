@@ -13,11 +13,12 @@ class VisionRobotNet(nn.Module):
                  cnn_model_version: str,
                  num_image_features: int,
                  num_robot_features: int,
+                 use_pretrained: bool,
                  dropout_rate: float = 0.2) -> None:
         super().__init__()
         self.cnn_version = cnn_model_version
         if cnn_model_version == "res_net":
-            self.cnn = self._init_res_net(num_image_features)
+            self.cnn = self._init_res_net(num_image_features, use_pretrained)
         elif cnn_model_version.startswith("efficientnet"):
             self.cnn = self._init_efficient_net(
                 num_image_features, version=cnn_model_version)
@@ -43,12 +44,14 @@ class VisionRobotNet(nn.Module):
         self._initialize_weights()
 
     @staticmethod
-    def _init_res_net(num_image_features: int) -> models.ResNet:
-        res_net = models.resnet50(weights='IMAGENET1K_V1')
+    def _init_res_net(num_image_features: int, use_pretrained: bool) -> models.ResNet:
+        res_net_kwargs = {"weights": "IMAGENET1K_V1"} if use_pretrained else {}
+        res_net = models.resnet50(**res_net_kwargs)
         num_res_net_features = res_net.fc.in_features
 
-        for p in res_net.parameters():
-            p.requires_grad = False
+        if use_pretrained:
+            for p in res_net.parameters():
+                p.requires_grad = False
 
         res_net.fc = nn.Linear(
             num_res_net_features, num_image_features)

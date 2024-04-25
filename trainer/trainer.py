@@ -32,6 +32,8 @@ class TrainerBase(ABC):
                  use_acceleration: bool,
                  lr_scheduler_config: Optional[LRSchedulerConfig] = None) -> None:
         self.model = model
+        assert hasattr(
+            self.model, "cnn_version"), "Model needs to have cnn_version set!"
         self.data_loaders = data_loaders
         assert "train" in data_loaders and "test" in data_loaders, \
             f"{data_loaders=}"
