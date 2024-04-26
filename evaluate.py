@@ -93,30 +93,28 @@ def eval_model(model: VisionRobotNet, data_loader: DataLoader, device: torch.dev
     return forces_pred, forces_gt
 
 
-def eval(args: argparse.Namespace) -> None:
-    weights_path = args.weights
+def eval() -> None:
+    args = parse_cmd_line()
+
+    if os.path.isdir(args.weights):
+        weights_path = os.path.join(args.weights, "best_params.pth")
+    else:
+        weights_path = args.weights
     if not os.path.exists(weights_path) or not os.path.isfile(weights_path):
-        raise Warning(f"Invalid weights file: {weights_path}")
+        raise Warning(f"Invalid weights: {weights_path}")
+
     model = VisionRobotNet(cnn_model_version=args.model,
                            num_image_features=constants.NUM_IMAGE_FEATURES,
-                           num_robot_features=util.get_num_robot_features(args))
+                           num_robot_features=util.get_num_robot_features(
+                               args),
+                           use_pretrained=False)
     model.eval()
     model.load_state_dict(torch.load(weights_path))
     print(f"[INFO] Loaded model from: {weights_path}")
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     print(f"[INFO] Using Device: {device}")
     model.to(device)
-
-    val_transform = transforms.Compose([
-        transforms.Resize((256, 256)),
-        CropBottom((224, 224)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
 
     batch_size = 8
 
@@ -124,8 +122,8 @@ def eval(args: argparse.Namespace) -> None:
     data = util.load_dataset(path, force_policy_runs=[
         args.run], no_force_policy_runs=[], crop_runs=False, use_acceleration=args.use_acceleration)
     dataset = VisionRobotDataset(
-        *data, path=path, transforms=val_transform)
-    print(f"Loaded Dataset with {len(dataset)} samples!")
+        *data, path=path, transforms=constants.RES_NET_TEST_TRANSFORM)
+    print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
     data_loader = DataLoader(dataset, batch_size=batch_size)
     forces_pred, forces_gt = eval_model(model, data_loader, device)
     save_predictions("predictions", forces_pred, forces_gt)
@@ -133,5 +131,4 @@ def eval(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    args = parse_cmd_line()
-    eval(args)
+    eval()

@@ -22,8 +22,10 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("--model", required=True, type=str)
     parser.add_argument('--force_runs', nargs='+',
                         type=int, help='A list of the run numbers of the force policy rollouts that should be used for training', required=True)
-    parser.add_argument('--no_force_runs', nargs='+',
-                        type=int, help='A list of the run numbers of the NO force policy rollouts that should be used for training', required=True)
+    parser.add_argument('--no_force_runs', nargs='*',
+                        type=int, default=[],
+                        help='A list of the run numbers of the NO force policy rollouts that should be used for training')
+
     parser.add_argument('--lr_scheduler', action='store_true', default=False)
     parser.add_argument('--use_acceleration',
                         action='store_true', default=False)
@@ -31,6 +33,8 @@ def parse_cmd_line() -> argparse.Namespace:
                         action='store_true', default=False)
     parser.add_argument('--use_pretrained',
                         action='store_true', default=False)
+    parser.add_argument("--out_dir", default=None, type=str)
+
     return parser.parse_args()
 
 
@@ -41,7 +45,7 @@ def train():
     data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
                        "test": constants.RES_NET_TRAIN_TRANSFORM}
     run_nums = {"train": [args.force_runs, args.no_force_runs],
-                "test": [[9, 10], []]}
+                "test": [[2], []]}
 
     hparams = {
         'batch_size': args.batch_size,
@@ -91,7 +95,8 @@ def train():
                            dropout_rate=0.2)
     model.to(device)
 
-    weights_dir = util.create_weights_path(args.model, args.num_epochs)
+    weights_dir = util.create_weights_path(
+        args.model, args.num_epochs) if not args.out_dir else args.out_dir
     lr_scheduler_config = LRSchedulerConfig() if args.lr_scheduler else None
     trainer = ForceEstimationTrainer(model,
                                      data_loaders,

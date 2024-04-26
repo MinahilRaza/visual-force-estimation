@@ -258,7 +258,7 @@ def get_log_dir(args: argparse.Namespace) -> str:
         model_name = f"finetuned_{cnn_name}"
     else:
         model_name = args.model
-    log_dir = f"runs/force_est_{model_name}_{args.num_epochs}ep_accel_{args.use_acceleration}_normalized_{args.normalize_targets}"
+    log_dir = f"runs/force_est_{model_name}_{args.num_epochs}ep_accel_{args.use_acceleration}_normalized_{args.normalize_targets}_pretrained_{args.use_pretrained}"
     return log_dir
 
 
