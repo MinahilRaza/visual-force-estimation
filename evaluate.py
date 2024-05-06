@@ -1,9 +1,12 @@
 import argparse
 import os
+import joblib
 from tqdm import tqdm
 import numpy as np
 from typing import Tuple
 import matplotlib.pyplot as plt
+
+from sklearn.preprocessing import MinMaxScaler
 
 import torch
 from torchvision import transforms
@@ -41,36 +44,35 @@ def save_predictions(dir: str, forces_pred: np.ndarray, forces_gt: np.ndarray):
                 file.write(line)
 
 
-def plot_forces(forces_pred: np.ndarray, forces_gt: np.ndarray, pdf: bool):
+def plot_forces(forces_pred: np.ndarray, forces_gt: np.ndarray, run: int, pdf: bool):
     assert forces_pred.shape == forces_gt.shape
     assert forces_pred.shape[1] == 3
 
-    if not os.path.exists('plots'):
-        os.makedirs('plots')
+    os.makedirs('plots', exist_ok=True)
 
     time_axis = np.arange(forces_pred.shape[0])
 
-    titles = ['Force in X Direction',
-              'Force in Y Direction', 'Force in Z Direction']
-    y_labels = ['Force X (N)', 'Force Y (N)', 'Force Z (N)']
+    axes = ["X", "Y", "Z"]
 
-    for i in range(3):
+    for i, ax in enumerate(axes):
         plt.figure()
         plt.plot(time_axis, forces_pred[:, i],
                  label='Predicted', linestyle='-', marker='')
         plt.plot(time_axis, forces_gt[:, i],
                  label='Ground Truth', linestyle='-', marker='')
-        plt.title(titles[i])
+        title = f"Force in {ax} Direction, Run {run}"
+        plt.title(title)
         plt.xlabel('Time')
-        plt.ylabel(y_labels[i])
+        plt.ylabel('Force [N]')
+        plt.ylim(-1, 1)
         plt.legend()
-        save_path = f"plots/force_{i}.{'pdf' if pdf else 'png'}"
+        save_path = f"plots/pred_run_{run}_force_{ax}.{'pdf' if pdf else 'png'}"
         plt.savefig(save_path)
         plt.close()
 
 
-@torch.no_grad()
-def eval_model(model: VisionRobotNet, data_loader: DataLoader, device: torch.device) -> Tuple[np.ndarray, np.ndarray]:
+@ torch.no_grad()
+def eval_model(model: VisionRobotNet, data_loader: DataLoader, target_scaler: MinMaxScaler, device: torch.device) -> Tuple[np.ndarray, np.ndarray]:
     model.eval()
     n_samples = len(data_loader.dataset)
     batch_size = data_loader.batch_size
@@ -88,8 +90,9 @@ def eval_model(model: VisionRobotNet, data_loader: DataLoader, device: torch.dev
         forces_pred[i*batch_size: i*batch_size + len_batch] = out
         forces_gt[i * batch_size: i * batch_size + len_batch] = target
         i += 1
-    forces_pred = forces_pred.to("cpu").numpy()
-    forces_gt = forces_gt.to("cpu").numpy()
+    forces_pred = forces_pred.cpu().detach().numpy()
+    forces_pred = target_scaler.inverse_transform(forces_pred)
+    forces_gt = forces_gt.cpu().detach().numpy()
     return forces_pred, forces_gt
 
 
@@ -101,7 +104,7 @@ def eval() -> None:
     else:
         weights_path = args.weights
     if not os.path.exists(weights_path) or not os.path.isfile(weights_path):
-        raise Warning(f"Invalid weights: {weights_path}")
+        raise ValueError(f"Invalid weights: {weights_path}")
 
     model = VisionRobotNet(cnn_model_version=args.model,
                            num_image_features=constants.NUM_IMAGE_FEATURES,
@@ -122,12 +125,18 @@ def eval() -> None:
     data = util.load_dataset(path, force_policy_runs=[
         args.run], no_force_policy_runs=[], crop_runs=False, use_acceleration=args.use_acceleration)
     dataset = VisionRobotDataset(
-        *data, path=path, transforms=constants.RES_NET_TEST_TRANSFORM)
+        *data,
+        path=path,
+        img_transforms=constants.RES_NET_TEST_TRANSFORM,
+        feature_scaler_path=constants.FEATURE_SCALER_FN)
+
     print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
     data_loader = DataLoader(dataset, batch_size=batch_size)
-    forces_pred, forces_gt = eval_model(model, data_loader, device)
+    target_scaler = joblib.load(constants.TARGET_SCALER_FN)
+    forces_pred, forces_gt = eval_model(
+        model, data_loader, target_scaler, device)
     save_predictions("predictions", forces_pred, forces_gt)
-    plot_forces(forces_pred, forces_gt, args.pdf)
+    plot_forces(forces_pred, forces_gt, args.run, args.pdf)
 
 
 if __name__ == "__main__":
