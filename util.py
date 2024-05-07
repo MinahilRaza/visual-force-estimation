@@ -264,7 +264,15 @@ def get_log_dir(args: argparse.Namespace) -> str:
         model_name = f"finetuned_{cnn_name}"
     else:
         model_name = args.model
-    log_dir = f"runs/force_est_{model_name}_{args.num_epochs}ep_accel_{args.use_acceleration}_normalized_{args.normalize_targets}_pretrained_{args.use_pretrained}"
+    num_ep = args.num_epochs
+    lr = args.lr
+    batch_size = args.batch_size
+    accel = int(args.use_acceleration)
+    normalized = int(args.normalize_targets)
+    pretrained = int(args.use_pretrained)
+    scheduled = "_scheduled" if args.lr_scheduler else ""
+    overfit = "_overfit" if args.overfit else ""
+    log_dir = f"runs/force_est{overfit}_{model_name}_{num_ep}ep_lr_{lr}{scheduled}_bs_{batch_size}_accel_{accel}_normalized_{normalized}_pretrained_{pretrained}_real"
     return log_dir
 
 
