@@ -4,13 +4,14 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 import argparse
+import joblib
 
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import matplotlib.pyplot as plt
 
 import torch
-from torch.utils.data import Dataset
 from dataset import VisionRobotDataset
+from models.vision_robot_net import VRNConfig
 import constants
 
 
@@ -281,6 +282,24 @@ def get_num_robot_features(args: argparse.Namespace) -> int:
         return constants.NUM_ROBOT_FEATURES_INCL_ACCEL
     else:
         return constants.NUM_ROBOT_FEATURES
+
+
+def get_vrn_config(args: argparse.Namespace) -> VRNConfig:
+    if args.overfit:
+        return VRNConfig(cnn_model_version=args.model,
+                         num_image_features=constants.NUM_IMAGE_FEATURES,
+                         num_robot_features=get_num_robot_features(
+                             args),
+                         use_pretrained=args.use_pretrained,
+                         dropout_rate=0.0,
+                         use_batch_norm=False)
+    return VRNConfig(cnn_model_version=args.model,
+                     num_image_features=constants.NUM_IMAGE_FEATURES,
+                     num_robot_features=get_num_robot_features(
+                         args),
+                     use_pretrained=args.use_pretrained,
+                     dropout_rate=0.2,
+                     use_batch_norm=True)
 
 
 if __name__ == "__main__":
