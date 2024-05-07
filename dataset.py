@@ -1,6 +1,8 @@
 from typing import List, Optional
 import torch
 import numpy as np
+import joblib
+import os
 
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -45,7 +47,8 @@ class AutoEncoderDataset(Dataset):
 
 class VisionRobotDataset(Dataset):
     """
-    Dataset class to store left and right images and robot data
+    Dataset class to store left and right images and robot data.
+    Optionally applies pre-fitted StandardScaler to robot features and MinMaxScaler to force targets.
     """
 
     def __init__(self,
@@ -54,7 +57,9 @@ class VisionRobotDataset(Dataset):
                  img_left_paths: List[str],
                  img_right_paths: List[str],
                  path: str,
-                 transforms: Optional[transforms.Compose] = None) -> None:
+                 img_transforms: Optional[transforms.Compose] = None,
+                 feature_scaler_path: Optional[str] = None,
+                 target_scaler_path: Optional[str] = None) -> None:
         self.num_samples, self.num_robot_features = robot_features.shape
         assert force_targets.shape[0] == self.num_samples, \
             f"force_labels size: \
@@ -66,8 +71,28 @@ class VisionRobotDataset(Dataset):
         self.force_targets = torch.from_numpy(force_targets).float()
         self.img_left_paths = img_left_paths
         self.img_right_paths = img_right_paths
-        self.transforms = transforms
+        self.transforms = img_transforms
         self.path = Path(path)
+
+        if feature_scaler_path:
+            assert os.path.isfile(
+                feature_scaler_path), f"{feature_scaler_path=}"
+            self.feature_scaler = joblib.load(feature_scaler_path)
+            self.robot_features = torch.from_numpy(
+                self.feature_scaler.transform(robot_features)
+            ).float()
+        else:
+            self.feature_scaler = None
+
+        if target_scaler_path:
+            assert os.path.isfile(
+                target_scaler_path), f"{target_scaler_path=}"
+            self.target_scaler = joblib.load(target_scaler_path)
+            self.force_targets = torch.from_numpy(
+                self.target_scaler.transform(force_targets)
+            ).float()
+        else:
+            self.target_scaler = None
 
     def __len__(self) -> int:
         return self.num_samples
