@@ -177,14 +177,17 @@ def load_dataset(path: str,
 def apply_scaling_to_datasets(train_dataset: VisionRobotDataset,
                               test_dataset: VisionRobotDataset,
                               normalize_targets: Optional[bool] = False) -> None:
-    scaler = StandardScaler()
+    feature_scaler = StandardScaler()
 
-    scaler.fit(train_dataset.robot_features.numpy())
+    feature_scaler.fit(train_dataset.robot_features.numpy())
 
     train_dataset.robot_features = torch.from_numpy(
-        scaler.transform(train_dataset.robot_features.numpy())).float()
+        feature_scaler.transform(train_dataset.robot_features.numpy())).float()
     test_dataset.robot_features = torch.from_numpy(
-        scaler.transform(test_dataset.robot_features.numpy())).float()
+        feature_scaler.transform(test_dataset.robot_features.numpy())).float()
+
+    # Save scaler to file to load it during eval
+    joblib.dump(feature_scaler, constants.FEATURE_SCALER_FN)
 
     if normalize_targets:
         target_scaler = MinMaxScaler(feature_range=(-1, 1))
@@ -194,6 +197,9 @@ def apply_scaling_to_datasets(train_dataset: VisionRobotDataset,
             target_scaler.transform(train_dataset.force_targets.numpy())).float()
         test_dataset.force_targets = torch.from_numpy(
             target_scaler.transform(test_dataset.force_targets.numpy())).float()
+
+        # Save scaler to file to load it during eval
+        joblib.dump(target_scaler, constants.TARGET_SCALER_FN)
 
 
 def create_weights_path(model: str, num_epochs: int, base_dir: str = "weights") -> str:
