@@ -292,10 +292,8 @@ def get_num_robot_features(args: argparse.Namespace) -> int:
 
 
 def get_image_transforms(args: argparse.Namespace) -> dict[str, transforms.Compose]:
-    if args.overfit:
-        return {"train": constants.RES_NET_TEST_TRANSFORM,
-                "test": constants.RES_NET_TEST_TRANSFORM}
-    return {"train": constants.RES_NET_TRAIN_TRANSFORM,
+    train_transform = constants.RES_NET_TEST_TRANSFORM if args.overfit else constants.RES_NET_TRAIN_TRANSFORM
+    return {"train": train_transform,
             "test": constants.RES_NET_TEST_TRANSFORM}
 
 
