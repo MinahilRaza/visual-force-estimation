@@ -153,6 +153,7 @@ class TrainerBase(ABC):
             file.write(f"Task: {self.task}\n")
             file.write(f"Host: {self.hostname}\n")
             file.write(f"CNN Model: {self.model.cnn_version}\n")
+            file.write(f"Model Config: {self.model.config}\n")
             file.write(f"Best Acc: {best_acc}\n")
             file.write(
                 f"Using Acceleration Features: {self.use_acceleration}\n")

@@ -40,6 +40,7 @@ class VisionRobotNet(nn.Module):
 
         self.dropout_rate = config.dropout_rate
         self.use_batch_norm = config.use_batch_norm
+        self.config = config
 
         self._initialize_linear_layers(config)
         self._initialize_weights()
@@ -152,7 +153,7 @@ if __name__ == "__main__":
     img_l = torch.randn((8, 3, 256, 256))
     feat = torch.randn((8, 41))
 
-    basic_config = VRNConfig("efficientnet_v2_m", 30, 41,
+    basic_config = VRNConfig("efficientnet_v2_m", 30, 41, hidden_layers=[128, 512, 64],
                              use_pretrained=False, dropout_rate=0.2, use_batch_norm=False)
     model = VisionRobotNet(basic_config)
     out = model(img_r, img_l, feat)
