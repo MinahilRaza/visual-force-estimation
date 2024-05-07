@@ -42,8 +42,8 @@ TARGET_COLUMNS = ['Force_x_smooth', 'Force_y_smooth', 'Force_z_smooth']
 
 START_END_TIMES = {
     "force_policy": {
-        1: [(400, -1)],
-        2: [(700, -1)],
+        1: [(0, -1)],
+        2: [(0, -1)],
         3: [(800, -1)],
         4: [(400, 1200), (2500, -1)],
         6: [(2000, -1)],
@@ -73,6 +73,8 @@ NUM_ROBOT_FEATURES = 58
 NUM_ROBOT_FEATURES_INCL_ACCEL = 78
 CNN_MODEL_VERSION = "efficientnet_v2_m"
 
+DEFAULT_TEST_RUNS = [[10, 11], []]
+
 RES_NET_TRAIN_TRANSFORM = transforms.Compose([
     transforms.RandomResizedCrop((224, 224)),
     transforms.RandomHorizontalFlip(),
@@ -90,3 +92,5 @@ RES_NET_TEST_TRANSFORM = transforms.Compose([
 ])
 
 ENCODER_WEIGHTS_FN = "encoder_weights.pth"
+TARGET_SCALER_FN = "transformations/target_scaler.joblib"
+FEATURE_SCALER_FN = "transformations/feature_scaler.joblib"
