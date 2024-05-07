@@ -42,12 +42,9 @@ def train():
     args = parse_cmd_line()
     print("Training Force Estimation Network")
 
-    data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
-                       "test": constants.RES_NET_TEST_TRANSFORM}
-    train_runs = [args.force_runs, args.no_force_runs]
-    test_runs = train_runs if args.overfit else constants.DEFAULT_TEST_RUNS
-    run_nums = {"train": train_runs,
-                "test": test_runs}
+    data_transforms = util.get_image_transforms(args)
+    run_nums = util.get_run_numbers(args)
+    log_dir = util.get_log_dir(args)
 
     hparams = {
         'batch_size': args.batch_size,
@@ -55,7 +52,6 @@ def train():
         'num_epochs': args.num_epochs,
         'model': args.model
     }
-    log_dir = util.get_log_dir(args)
     writer = SummaryWriter(log_dir=log_dir)
     writer.add_custom_scalars(constants.LAYOUT)
     writer.add_hparams(hparams, {})

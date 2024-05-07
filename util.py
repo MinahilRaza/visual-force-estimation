@@ -10,6 +10,7 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import matplotlib.pyplot as plt
 
 import torch
+from torchvision import transforms
 from dataset import VisionRobotDataset
 from models.vision_robot_net import VRNConfig
 import constants
@@ -277,11 +278,25 @@ def get_log_dir(args: argparse.Namespace) -> str:
     return log_dir
 
 
+def get_run_numbers(args: argparse.Namespace) -> dict[str, List[List[int]]]:
+    train_runs = [args.force_runs, args.no_force_runs]
+    test_runs = train_runs if args.overfit else constants.DEFAULT_TEST_RUNS
+    return {"train": train_runs, "test": test_runs}
+
+
 def get_num_robot_features(args: argparse.Namespace) -> int:
     if args.use_acceleration:
         return constants.NUM_ROBOT_FEATURES_INCL_ACCEL
     else:
         return constants.NUM_ROBOT_FEATURES
+
+
+def get_image_transforms(args: argparse.Namespace) -> dict[str, transforms.Compose]:
+    if args.overfit:
+        return {"train": constants.RES_NET_TEST_TRANSFORM,
+                "test": constants.RES_NET_TEST_TRANSFORM}
+    return {"train": constants.RES_NET_TRAIN_TRANSFORM,
+            "test": constants.RES_NET_TEST_TRANSFORM}
 
 
 def get_vrn_config(args: argparse.Namespace) -> VRNConfig:
