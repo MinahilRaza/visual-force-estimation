@@ -134,14 +134,11 @@ class VisionRobotNet(nn.Module):
     def forward(self, img_right: torch.Tensor, img_left: torch.Tensor, x: torch.Tensor):
         img_right_features = self.cnn(img_right)
         img_left_features = self.cnn(img_left)
-
         x = torch.cat((img_left_features, img_right_features, x), dim=-1)
 
-        x = self.linear1(x)
-        x = self.linear2(x)
-        x = self.linear3(x)
-        # x = self.linear4(x)
-        out = self.linear5(x)
+        for layer in self.layers:
+            x = layer(x)
+        out = self.output_layer(x)
 
         return out
 
