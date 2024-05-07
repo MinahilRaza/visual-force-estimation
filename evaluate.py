@@ -28,6 +28,7 @@ def parse_cmd_line() -> argparse.Namespace:
                         help='stores the plots as pdf instead of png')
     parser.add_argument('--use_acceleration',
                         action='store_true', default=False)
+    parser.add_argument("--overfit", action='store_true', default=False)
     return parser.parse_args()
 
 
@@ -106,18 +107,16 @@ def eval() -> None:
     if not os.path.exists(weights_path) or not os.path.isfile(weights_path):
         raise ValueError(f"Invalid weights: {weights_path}")
 
-    model = VisionRobotNet(cnn_model_version=args.model,
-                           num_image_features=constants.NUM_IMAGE_FEATURES,
-                           num_robot_features=util.get_num_robot_features(
-                               args),
-                           use_pretrained=False)
-    model.eval()
-    model.load_state_dict(torch.load(weights_path))
-    print(f"[INFO] Loaded model from: {weights_path}")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    print(f"[INFO] Using Device: {device}")
+    model_config = util.get_vrn_config(args)
+    model = VisionRobotNet(model_config)
+    model.load_state_dict(torch.load(weights_path))
+
     model.to(device)
+    model.eval()
+    print(f"[INFO] Loaded model from: {weights_path}")
+    print(f"[INFO] Using Device: {device}")
 
     batch_size = 8
 
