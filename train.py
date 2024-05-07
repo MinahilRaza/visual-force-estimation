@@ -26,17 +26,14 @@ def parse_cmd_line() -> argparse.Namespace:
                         type=int, default=[],
                         help='A list of the run numbers of the NO force policy rollouts that should be used for training')
 
-    parser.add_argument('--lr_scheduler', action='store_true',
-                        default=False, type=bool)
+    parser.add_argument('--lr_scheduler', action='store_true', default=False)
     parser.add_argument('--use_acceleration',
                         action='store_true', default=False)
     parser.add_argument('--normalize_targets',
                         action='store_true', default=False)
-    parser.add_argument('--use_pretrained',
-                        action='store_true', default=False)
+    parser.add_argument('--use_pretrained', action='store_true', default=False)
     parser.add_argument("--out_dir", default=None, type=str)
-    parser.add_argument("--overfit", action='store_true',
-                        default=False, type=bool)
+    parser.add_argument("--overfit", action='store_true', default=False)
 
     return parser.parse_args()
 
