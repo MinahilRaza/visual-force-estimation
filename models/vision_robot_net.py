@@ -136,7 +136,7 @@ class VisionRobotNet(nn.Module):
         img_left_features = self.cnn(img_left)
         x = torch.cat((img_left_features, img_right_features, x), dim=-1)
 
-        for layer in self.layers:
+        for layer in self.linear_layers:
             x = layer(x)
         out = self.output_layer(x)
 
