@@ -15,6 +15,7 @@ class VRNConfig:
     cnn_model_version: str
     num_image_features: int
     num_robot_features: int
+    hidden_layers: list
     use_pretrained: bool
     dropout_rate: float
     use_batch_norm: bool
@@ -40,14 +41,17 @@ class VisionRobotNet(nn.Module):
         self.dropout_rate = config.dropout_rate
         self.use_batch_norm = config.use_batch_norm
 
-        in_features = 2 * config.num_image_features + config.num_robot_features
-        self.linear1 = self._make_linear_layer(in_features, 256)
-        self.linear2 = self._make_linear_layer(256, 512)
-        self.linear3 = self._make_linear_layer(512, 64)
-        # self.linear4 = self._make_linear_layer(1024, 64)
-        self.linear5 = nn.Linear(64, 3)
-
+        self._initialize_linear_layers(config)
         self._initialize_weights()
+
+    def _initialize_linear_layers(self, config: VRNConfig) -> None:
+        layers = []
+        in_features = 2 * config.num_image_features + config.num_robot_features
+        for out_features in config.hidden_layers:
+            layers.append(self._make_linear_layer(in_features, out_features))
+            in_features = out_features
+        self.linear_layers = nn.ModuleList(layers)
+        self.output_layer = nn.Linear(in_features, 3)
 
     def _make_linear_layer(self, in_features: int, out_features: int) -> nn.Module:
         if self.use_batch_norm:

@@ -298,21 +298,22 @@ def get_image_transforms(args: argparse.Namespace) -> dict[str, transforms.Compo
 
 
 def get_vrn_config(args: argparse.Namespace) -> VRNConfig:
+    num_robot_features = get_num_robot_features(args)
     if args.overfit:
         return VRNConfig(cnn_model_version=args.model,
                          num_image_features=constants.NUM_IMAGE_FEATURES,
-                         num_robot_features=get_num_robot_features(
-                             args),
+                         num_robot_features=num_robot_features,
+                         hidden_layers=[256, 512, 64],
                          use_pretrained=args.use_pretrained,
                          dropout_rate=0.0,
                          use_batch_norm=False)
     return VRNConfig(cnn_model_version=args.model,
                      num_image_features=constants.NUM_IMAGE_FEATURES,
-                     num_robot_features=get_num_robot_features(
-                         args),
+                     num_robot_features=num_robot_features,
+                     hidden_layers=[256, 512, 64],
                      use_pretrained=args.use_pretrained,
                      dropout_rate=0.2,
-                     use_batch_norm=True)
+                     use_batch_norm=False)
 
 
 if __name__ == "__main__":
