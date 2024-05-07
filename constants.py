@@ -94,3 +94,5 @@ RES_NET_TEST_TRANSFORM = transforms.Compose([
 ENCODER_WEIGHTS_FN = "encoder_weights.pth"
 TARGET_SCALER_FN = "transformations/target_scaler.joblib"
 FEATURE_SCALER_FN = "transformations/feature_scaler.joblib"
+
+MOVING_AVG_WINDOW_SIZE = 5

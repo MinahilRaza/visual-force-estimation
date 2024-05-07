@@ -32,12 +32,15 @@ def parse_cmd_line() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def save_predictions(dir: str, forces_pred: np.ndarray, forces_gt: np.ndarray):
-    if not os.path.exists(dir):
-        os.makedirs(dir)
+def save_predictions(dir: str, forces_pred: np.ndarray, forces_smooth: np.ndarray, forces_gt: np.ndarray):
+    os.makedirs(dir, exist_ok=True)
     pred_file = os.path.join(dir, "predicted_forces.txt")
     gt_file = os.path.join(dir, "true_forces.txt")
-    for write_file, force_array in zip([pred_file, gt_file], [forces_pred, forces_gt]):
+    smooth_file = os.path.join(dir, "smoothed_forces.txt")
+    files = [pred_file, smooth_file, gt_file]
+    forces = [forces_pred, forces_smooth, forces_gt]
+
+    for write_file, force_array in zip(files, forces):
         with open(write_file, 'w', encoding='utf-8') as file:
             file.write("F_X,F_Y,F_Z\n")
             for force in force_array:
@@ -45,7 +48,14 @@ def save_predictions(dir: str, forces_pred: np.ndarray, forces_gt: np.ndarray):
                 file.write(line)
 
 
-def plot_forces(forces_pred: np.ndarray, forces_gt: np.ndarray, run: int, pdf: bool):
+def moving_average(data: np.ndarray, window_size: int) -> np.ndarray:
+    cumsum_vec = np.cumsum(np.insert(data, 0, 0))
+    moving_avg = (cumsum_vec[window_size:] -
+                  cumsum_vec[:-window_size]) / window_size
+    return moving_avg
+
+
+def plot_forces(forces_pred: np.ndarray, forces_smooth: np.ndarray, forces_gt: np.ndarray, run: int, pdf: bool):
     assert forces_pred.shape == forces_gt.shape
     assert forces_pred.shape[1] == 3
 
@@ -71,8 +81,24 @@ def plot_forces(forces_pred: np.ndarray, forces_gt: np.ndarray, run: int, pdf: b
         plt.savefig(save_path)
         plt.close()
 
+    for i, ax in enumerate(axes):
+        plt.figure()
+        plt.plot(
+            time_axis, forces_smooth[:, i], label='Smoothed Predictions', linestyle='-', marker='')
+        plt.plot(time_axis, forces_gt[:, i],
+                 label='Ground Truth', linestyle='-', marker='')
+        title = f"Force in {ax} Direction, Run {run}"
+        plt.title(title)
+        plt.xlabel('Time')
+        plt.ylabel('Force [N]')
+        plt.ylim(-1, 1)
+        plt.legend()
+        save_path = f"plots/pred_smooth_run_{run}_force_{ax}.{'pdf' if pdf else 'png'}"
+        plt.savefig(save_path)
+        plt.close()
 
-@ torch.no_grad()
+
+@torch.no_grad()
 def eval_model(model: VisionRobotNet, data_loader: DataLoader, target_scaler: MinMaxScaler, device: torch.device) -> Tuple[np.ndarray, np.ndarray]:
     model.eval()
     n_samples = len(data_loader.dataset)
@@ -119,7 +145,7 @@ def eval() -> None:
     print(f"[INFO] Loaded model from: {weights_path}")
     print(f"[INFO] Using Device: {device}")
 
-    batch_size = 8
+    batch_size = 32
 
     path = "data"
     data = util.load_dataset(path, force_policy_runs=[
@@ -135,7 +161,9 @@ def eval() -> None:
     target_scaler = joblib.load(constants.TARGET_SCALER_FN)
     forces_pred, forces_gt = eval_model(
         model, data_loader, target_scaler, device)
-    save_predictions("predictions", forces_pred, forces_gt)
+    forces_pred_smooth = moving_average(
+        forces_pred, window_size=constants.MOVING_AVG_WINDOW_SIZE)
+    save_predictions("predictions", forces_pred, forces_pred_smooth, forces_gt)
     plot_forces(forces_pred, forces_gt, args.run, args.pdf)
 
 
