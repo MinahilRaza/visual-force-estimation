@@ -15,7 +15,7 @@ from loss import RMSELoss
 
 
 class LRSchedulerConfig(object):
-    step_size = 20
+    step_size = 60
     gamma = 0.1
 
 
@@ -119,8 +119,7 @@ class TrainerBase(ABC):
                             scaler.step(self.optimizer)
                             scaler.update()
                             self.optimizer.zero_grad(set_to_none=True)
-                            if self.scheduler:
-                                self.scheduler.step()
+
                 avg_loss_epoch = total_loss_epoch / \
                     len(self.data_loaders[phase])
                 avg_acc_epoch = total_acc_epoch / len(self.data_loaders[phase])
@@ -136,6 +135,10 @@ class TrainerBase(ABC):
                     torch.save(self.model.state_dict(), self.save_path_best)
                     print(f"Saved new best model with \
                         RMSE:{round(avg_acc_epoch.item(), 4)}")
+
+            if self.scheduler and phase == "train":
+                self.scheduler.step()
+
             epoch_logs.append({
                 "Test Loss": loss_phase['test'].item(),
                 "Test RMSE": acc_phase['test'].item()})
@@ -153,8 +156,10 @@ class TrainerBase(ABC):
             file.write(f"Best Acc: {best_acc}\n")
             file.write(
                 f"Using Acceleration Features: {self.use_acceleration}\n")
+            file.write(f"Learning Rate: {self.lr}\n")
+            file.write(f"Using LR Scheduler: {self.scheduler is not None}\n")
             for i, log in enumerate(epoch_logs):
-                file.write(f"Epoch {i}: {log}\n")
+                file.write(f"Epoch {i+1}: {log}\n")
 
 
 class VarAutoEncoderTrainer(TrainerBase):
