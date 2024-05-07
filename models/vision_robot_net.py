@@ -5,43 +5,64 @@ import torch.nn as nn
 from torchvision import models
 from models.var_auto_encoder import ResNet50Enc
 
+from dataclasses import dataclass
+
 import constants
 
 
+@dataclass
+class VRNConfig:
+    cnn_model_version: str
+    num_image_features: int
+    num_robot_features: int
+    use_pretrained: bool
+    dropout_rate: float
+    use_batch_norm: bool
+
+
 class VisionRobotNet(nn.Module):
-    def __init__(self,
-                 cnn_model_version: str,
-                 num_image_features: int,
-                 num_robot_features: int,
-                 use_pretrained: bool,
-                 dropout_rate: float = 0.2) -> None:
+    def __init__(self, config: VRNConfig) -> None:
         super().__init__()
-        self.cnn_version = cnn_model_version
-        if cnn_model_version == "res_net":
-            self.cnn = self._init_res_net(num_image_features, use_pretrained)
-        elif cnn_model_version.startswith("efficientnet"):
+        self.cnn_version = config.cnn_model_version
+        if config.cnn_model_version == "res_net":
+            self.cnn = self._init_res_net(
+                config.num_image_features, config.use_pretrained)
+        elif config.cnn_model_version.startswith("efficientnet"):
             self.cnn = self._init_efficient_net(
-                num_image_features, version=cnn_model_version)
+                config.num_image_features, version=config.cnn_model_version)
         else:
             self.cnn = self._init_finetuned_res_net(
-                num_image_features, cnn_model_version)
+                config.num_image_features, config.cnn_model_version)
 
-        self.num_image_features = num_image_features
-        self.num_robot_features = num_robot_features
+        self.num_image_features = config.num_image_features
+        self.num_robot_features = config.num_robot_features
 
-        self.fc1 = nn.Linear(2 * num_image_features + num_robot_features, 128)
-        self.fc2 = nn.Linear(128, 256)
-        self.fc3 = nn.Linear(256, 64)
-        self.fc4 = nn.Linear(64, 3)
+        self.dropout_rate = config.dropout_rate
+        self.use_batch_norm = config.use_batch_norm
 
-        self.bn1 = nn.BatchNorm1d(128)
-        self.bn2 = nn.BatchNorm1d(256)
-        self.bn3 = nn.BatchNorm1d(64)
-
-        self.dropout = nn.Dropout(dropout_rate)
-        self.relu = nn.ReLU()
+        in_features = 2 * config.num_image_features + config.num_robot_features
+        self.linear1 = self._make_linear_layer(in_features, 256)
+        self.linear2 = self._make_linear_layer(256, 512)
+        self.linear3 = self._make_linear_layer(512, 64)
+        # self.linear4 = self._make_linear_layer(1024, 64)
+        self.linear5 = nn.Linear(64, 3)
 
         self._initialize_weights()
+
+    def _make_linear_layer(self, in_features: int, out_features: int) -> nn.Module:
+        if self.use_batch_norm:
+            return nn.Sequential(
+                nn.Linear(in_features, out_features),
+                nn.BatchNorm1d(out_features),
+                nn.ReLU(),
+                nn.Dropout(self.dropout_rate)
+            )
+        else:
+            return nn.Sequential(
+                nn.Linear(in_features, out_features),
+                nn.ReLU(),
+                nn.Dropout(self.dropout_rate)
+            )
 
     @staticmethod
     def _init_res_net(num_image_features: int, use_pretrained: bool) -> models.ResNet:
@@ -112,22 +133,13 @@ class VisionRobotNet(nn.Module):
 
         x = torch.cat((img_left_features, img_right_features, x), dim=-1)
 
-        x = self._linear_forward(x, 1)
-        x = self._linear_forward(x, 2)
-        x = self._linear_forward(x, 3)
+        x = self.linear1(x)
+        x = self.linear2(x)
+        x = self.linear3(x)
+        # x = self.linear4(x)
+        out = self.linear5(x)
 
-        out = self.fc4(x)
         return out
-
-    def _linear_forward(self, x: torch.Tensor, layer_nr: int):
-        linear_layer = getattr(self, f"fc{layer_nr}")
-        batch_norm_layer = getattr(self, f"bn{layer_nr}")
-
-        x = linear_layer(x)
-        x = batch_norm_layer(x)
-        x = self.relu(x)
-        x = self.dropout(x)
-        return x
 
     @property
     def device(self) -> torch.device:
@@ -139,7 +151,9 @@ if __name__ == "__main__":
     img_l = torch.randn((8, 3, 256, 256))
     feat = torch.randn((8, 41))
 
-    model = VisionRobotNet("efficientnet_v2_m", 30, 41, dropout_rate=0.2)
+    basic_config = VRNConfig("efficientnet_v2_m", 30, 41,
+                             use_pretrained=False, dropout_rate=0.2, use_batch_norm=False)
+    model = VisionRobotNet(basic_config)
     out = model(img_r, img_l, feat)
 
     assert not torch.isnan(out).any()
