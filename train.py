@@ -26,7 +26,8 @@ def parse_cmd_line() -> argparse.Namespace:
                         type=int, default=[],
                         help='A list of the run numbers of the NO force policy rollouts that should be used for training')
 
-    parser.add_argument('--lr_scheduler', action='store_true', default=False)
+    parser.add_argument('--lr_scheduler', action='store_true',
+                        default=False, type=bool)
     parser.add_argument('--use_acceleration',
                         action='store_true', default=False)
     parser.add_argument('--normalize_targets',
@@ -34,6 +35,8 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument('--use_pretrained',
                         action='store_true', default=False)
     parser.add_argument("--out_dir", default=None, type=str)
+    parser.add_argument("--overfit", action='store_true',
+                        default=False, type=bool)
 
     return parser.parse_args()
 
@@ -43,9 +46,11 @@ def train():
     print("Training Force Estimation Network")
 
     data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
-                       "test": constants.RES_NET_TRAIN_TRANSFORM}
-    run_nums = {"train": [args.force_runs, args.no_force_runs],
-                "test": [[2], []]}
+                       "test": constants.RES_NET_TEST_TRANSFORM}
+    train_runs = [args.force_runs, args.no_force_runs]
+    test_runs = train_runs if args.overfit else constants.DEFAULT_TEST_RUNS
+    run_nums = {"train": train_runs,
+                "test": test_runs}
 
     hparams = {
         'batch_size': args.batch_size,
@@ -60,7 +65,7 @@ def train():
 
     data_dir = "data"
     sets = ["train", "test"]
-    data_loaders: dict[DataLoader] = {}
+    data_loaders: dict[str, DataLoader] = {}
 
     for s in sets:
         data = util.load_dataset(
@@ -69,7 +74,7 @@ def train():
             no_force_policy_runs=run_nums[s][1],
             use_acceleration=args.use_acceleration)
         dataset = VisionRobotDataset(
-            *data, path=data_dir, transforms=data_transforms[s])
+            *data, path=data_dir, img_transforms=data_transforms[s])
         print(f"[INFO] Loaded Dataset {s} with {len(dataset)} samples!")
         data_loaders[s] = DataLoader(
             dataset, batch_size=args.batch_size, drop_last=True)
@@ -87,12 +92,8 @@ def train():
     print(f"[INFO] Learning Rate: {args.lr}")
     print(f"[INFO] Pretrained Weights: {args.use_pretrained}")
 
-    model = VisionRobotNet(cnn_model_version=args.model,
-                           num_image_features=constants.NUM_IMAGE_FEATURES,
-                           num_robot_features=util.get_num_robot_features(
-                               args),
-                           use_pretrained=args.use_pretrained,
-                           dropout_rate=0.2)
+    model_config = util.get_vrn_config(args)
+    model = VisionRobotNet(model_config)
     model.to(device)
 
     weights_dir = util.create_weights_path(
