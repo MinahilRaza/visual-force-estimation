@@ -99,6 +99,7 @@ def eval_model(model: VisionRobotNet, data_loader: DataLoader, target_scaler: Mi
 
 def eval() -> None:
     args = parse_cmd_line()
+    args.use_pretrained = False
 
     if os.path.isdir(args.weights):
         weights_path = os.path.join(args.weights, "best_params.pth")
