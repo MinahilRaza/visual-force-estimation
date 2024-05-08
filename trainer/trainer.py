@@ -15,7 +15,7 @@ from loss import RMSELoss
 
 
 class LRSchedulerConfig(object):
-    step_size = 60
+    milestones = [20, 80, 160]
     gamma = 0.1
 
 
@@ -59,9 +59,9 @@ class TrainerBase(ABC):
         self.optimizer = torch.optim.Adam(
             self.model.parameters(), lr=lr, weight_decay=weights_decay)
         if lr_scheduler_config is not None:
-            self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer,
-                                                             step_size=lr_scheduler_config.step_size,
-                                                             gamma=lr_scheduler_config.gamma)
+            self.scheduler = torch.optim.lr_scheduler.MultiStepLR(self.optimizer,
+                                                                  milestones=lr_scheduler_config.milestones,
+                                                                  gamma=lr_scheduler_config.gamma)
         else:
             self.scheduler = None
 
@@ -92,6 +92,7 @@ class TrainerBase(ABC):
         epoch_logs = []
         for i in range(num_epochs):
             print(f"Epoch {i+1}/{num_epochs}")
+            print(f"LR: {self.optimizer.param_groups[0]['lr']}")
             loss_phase = {}
             acc_phase = {}
             for phase in self.phases:
@@ -136,7 +137,7 @@ class TrainerBase(ABC):
                     print(f"Saved new best model with \
                         RMSE:{round(avg_acc_epoch.item(), 4)}")
 
-            if self.scheduler and phase == "train":
+            if self.scheduler:
                 self.scheduler.step()
 
             epoch_logs.append({
@@ -152,11 +153,9 @@ class TrainerBase(ABC):
         with open(os.path.join(self.weights_dir, "logs.txt"), "w", encoding="utf-8") as file:
             file.write(f"Task: {self.task}\n")
             file.write(f"Host: {self.hostname}\n")
-            file.write(f"CNN Model: {self.model.cnn_version}\n")
             file.write(f"Model Config: {self.model.config}\n")
             file.write(f"Best Acc: {best_acc}\n")
-            file.write(
-                f"Using Acceleration Features: {self.use_acceleration}\n")
+            file.write(f"Using Acceleration: {self.use_acceleration}\n")
             file.write(f"Learning Rate: {self.lr}\n")
             file.write(f"Using LR Scheduler: {self.scheduler is not None}\n")
             for i, log in enumerate(epoch_logs):
