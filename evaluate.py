@@ -49,9 +49,28 @@ def save_predictions(dir: str, forces_pred: np.ndarray, forces_smooth: np.ndarra
 
 
 def moving_average(data: np.ndarray, window_size: int) -> np.ndarray:
-    cumsum_vec = np.cumsum(np.insert(data, 0, 0))
+    """
+    Computes the moving average for each column of data separately.
+
+    Parameters:
+    data (np.ndarray): A 2D array where each column represents a series of data points.
+    window_size (int): The number of data points in each moving average window.
+
+    Returns:
+    np.ndarray: A 2D array with the same shape as data, containing the moving averages.
+    """
+    if window_size > data.shape[0]:
+        raise ValueError(
+            "window_size is larger than the number of rows in data.")
+
+    zero_pad = np.zeros((window_size-1, data.shape[1]))
+    data_padded = np.insert(data, 0, zero_pad, axis=0)
+    cumsum_vec = np.cumsum(data_padded, axis=0)
     moving_avg = (cumsum_vec[window_size:] -
                   cumsum_vec[:-window_size]) / window_size
+
+    assert moving_avg.shape[1] == data.shape[
+        1], f"The output shape {moving_avg.shape} does not match the input shape {data.shape}"
     return moving_avg
 
 
@@ -84,8 +103,8 @@ def plot_forces(forces_pred: np.ndarray, forces_smooth: np.ndarray, forces_gt: n
     for i, ax in enumerate(axes):
         plt.figure()
         plt.plot(
-            time_axis, forces_smooth[:, i], label='Smoothed Predictions', linestyle='-', marker='')
-        plt.plot(time_axis, forces_gt[:, i],
+            time_axis[:-1], forces_smooth[:, i], label='Smoothed Predictions', linestyle='-', marker='')
+        plt.plot(time_axis[:-1], forces_gt[:-1, i],
                  label='Ground Truth', linestyle='-', marker='')
         title = f"Force in {ax} Direction, Run {run}"
         plt.title(title)
@@ -148,13 +167,15 @@ def eval() -> None:
     batch_size = 32
 
     path = "data"
-    data = util.load_dataset(path, force_policy_runs=[
-        args.run], no_force_policy_runs=[], crop_runs=False, use_acceleration=args.use_acceleration)
-    dataset = VisionRobotDataset(
-        *data,
-        path=path,
-        img_transforms=constants.RES_NET_TEST_TRANSFORM,
-        feature_scaler_path=constants.FEATURE_SCALER_FN)
+    data = util.load_dataset(path,
+                             force_policy_runs=[args.run],
+                             no_force_policy_runs=[],
+                             crop_runs=False,
+                             use_acceleration=args.use_acceleration)
+    dataset = VisionRobotDataset(*data,
+                                 path=path,
+                                 img_transforms=constants.RES_NET_TEST_TRANSFORM,
+                                 feature_scaler_path=constants.FEATURE_SCALER_FN)
 
     print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
     data_loader = DataLoader(dataset, batch_size=batch_size)
@@ -164,7 +185,7 @@ def eval() -> None:
     forces_pred_smooth = moving_average(
         forces_pred, window_size=constants.MOVING_AVG_WINDOW_SIZE)
     save_predictions("predictions", forces_pred, forces_pred_smooth, forces_gt)
-    plot_forces(forces_pred, forces_gt, args.run, args.pdf)
+    plot_forces(forces_pred, forces_pred_smooth, forces_gt, args.run, args.pdf)
 
 
 if __name__ == "__main__":
