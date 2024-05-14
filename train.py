@@ -34,6 +34,11 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument('--use_pretrained', action='store_true', default=False)
     parser.add_argument("--out_dir", default=None, type=str)
     parser.add_argument("--overfit", action='store_true', default=False)
+    parser.add_argument('--state',
+                        choices=['both', 'robot', 'vision'],
+                        required=True,
+                        help='Set the model state: both for VISION_AND_ROBOT, robot for ROBOT_ONLY, vision for VISION_ONLY'
+                        )
 
     return parser.parse_args()
 
@@ -79,15 +84,16 @@ def train():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    model_config = util.get_vrn_config(args)
+    model = VisionRobotNet(model_config)
+    model.to(device)
+
     print(f"[INFO] Using Device: {device}")
     print(f"[INFO] Training Model: {args.model}")
     print(f"[INFO] Batch Size: {args.batch_size}")
     print(f"[INFO] Learning Rate: {args.lr}")
     print(f"[INFO] Pretrained Weights: {args.use_pretrained}")
-
-    model_config = util.get_vrn_config(args)
-    model = VisionRobotNet(model_config)
-    model.to(device)
+    print(f"[INFO] Model State: {model_config.model_state}")
 
     weights_dir = util.create_weights_path(
         args.model, args.num_epochs) if not args.out_dir else args.out_dir

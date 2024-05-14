@@ -2,6 +2,8 @@ import os
 import torch
 import torch.nn as nn
 
+from typing import List, Tuple
+
 from torchvision import models
 from models.var_auto_encoder import ResNet50Enc
 
@@ -9,46 +11,101 @@ from dataclasses import dataclass
 
 import constants
 
+from enum import Enum
+
+
+class ModelState(Enum):
+    VISION_ONLY = 1
+    ROBOT_ONLY = 2
+    VISION_AND_ROBOT = 3
+
+
+STATE_MAPPING = {
+    'both': ModelState.VISION_AND_ROBOT,
+    'robot': ModelState.ROBOT_ONLY,
+    'vision': ModelState.VISION_ONLY
+}
+
 
 @dataclass
 class VRNConfig:
     cnn_model_version: str
     num_image_features: int
     num_robot_features: int
-    hidden_layers: list
+    hidden_layers: List[int]
     use_pretrained: bool
     dropout_rate: float
     use_batch_norm: bool
+    model_state: ModelState
 
 
 class VisionRobotNet(nn.Module):
     def __init__(self, config: VRNConfig) -> None:
         super().__init__()
         self.cnn_version = config.cnn_model_version
-        if config.cnn_model_version == "res_net":
-            self.cnn = self._init_res_net(
-                config.num_image_features, config.use_pretrained)
-        elif config.cnn_model_version.startswith("efficientnet"):
-            self.cnn = self._init_efficient_net(
-                config.num_image_features, version=config.cnn_model_version)
-        else:
-            self.cnn = self._init_finetuned_res_net(
-                config.num_image_features, config.cnn_model_version)
-
         self.num_image_features = config.num_image_features
         self.num_robot_features = config.num_robot_features
 
-        self.dropout_rate = config.dropout_rate
-        self.use_batch_norm = config.use_batch_norm
-        self.config = config
+        if config.model_state == ModelState.VISION_AND_ROBOT:
+            linear_input_features = 2*self.num_image_features + self.num_robot_features
+        elif config.model_state == ModelState.VISION_ONLY:
+            linear_input_features = 2*self.num_image_features
+        else:
+            linear_input_features = self.num_robot_features
 
-        self._initialize_linear_layers(config)
+        self.linear_model = LinearNet(num_input_features=linear_input_features,
+                                      hidden_layers=config.hidden_layers,
+                                      dropout_rate=config.dropout_rate,
+                                      use_batch_norm=config.use_batch_norm)
+        self.stereo_vision_model = StereoVisionNet(cnn_model_version=config.cnn_model_version,
+                                                   num_image_features=config.num_image_features,
+                                                   use_pretrained=config.use_pretrained)
+
+        self.config = config
         self._initialize_weights()
 
-    def _initialize_linear_layers(self, config: VRNConfig) -> None:
+    def _initialize_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+
+    def forward(self, img_right: torch.Tensor, img_left: torch.Tensor, x: torch.Tensor):
+        if self.config.model_state == ModelState.VISION_ONLY:
+            img_right_features, img_left_features = self.stereo_vision_model(
+                img_right, img_left)
+            x = torch.cat((img_left_features, img_right_features), dim=-1)
+
+        elif self.config.model_state == ModelState.VISION_AND_ROBOT:
+            img_right_features, img_left_features = self.stereo_vision_model(
+                img_right, img_left)
+            x = torch.cat((img_left_features, img_right_features, x), dim=-1)
+
+        out = self.linear_model(x)
+
+        return out
+
+    @ property
+    def device(self) -> torch.device:
+        return self.fc1.weight.device
+
+
+class LinearNet(nn.Module):
+    def __init__(self,
+                 num_input_features: int,
+                 hidden_layers: List[int],
+                 dropout_rate: float,
+                 use_batch_norm: bool) -> None:
+        super().__init__()
+        self.use_batch_norm = use_batch_norm
+        self.dropout_rate = dropout_rate
+        self._initialize_linear_layers(num_input_features, hidden_layers)
+
+    def _initialize_linear_layers(self, num_input_features: int,  hidden_layers: List[int]) -> None:
         layers = []
-        in_features = 2 * config.num_image_features + config.num_robot_features
-        for out_features in config.hidden_layers:
+        in_features = num_input_features
+        for out_features in hidden_layers:
             layers.append(self._make_linear_layer(in_features, out_features))
             in_features = out_features
         self.linear_layers = nn.ModuleList(layers)
@@ -68,6 +125,27 @@ class VisionRobotNet(nn.Module):
                 nn.ReLU(),
                 nn.Dropout(self.dropout_rate)
             )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for layer in self.linear_layers:
+            x = layer(x)
+        out = self.output_layer(x)
+
+        return out
+
+
+class StereoVisionNet(nn.Module):
+    def __init__(self, cnn_model_version: str, num_image_features: int, use_pretrained: bool) -> None:
+        super().__init__()
+        if cnn_model_version == "res_net":
+            self.cnn = self._init_res_net(
+                num_image_features, use_pretrained)
+        elif cnn_model_version.startswith("efficientnet"):
+            self.cnn = self._init_efficient_net(
+                num_image_features, version=cnn_model_version)
+        else:
+            self.cnn = self._init_finetuned_res_net(
+                num_image_features, cnn_model_version)
 
     @staticmethod
     def _init_res_net(num_image_features: int, use_pretrained: bool) -> models.ResNet:
@@ -125,27 +203,10 @@ class VisionRobotNet(nn.Module):
 
         return efficient_net
 
-    def _initialize_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-
-    def forward(self, img_right: torch.Tensor, img_left: torch.Tensor, x: torch.Tensor):
+    def forward(self, img_right: torch.Tensor, img_left: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         img_right_features = self.cnn(img_right)
         img_left_features = self.cnn(img_left)
-        x = torch.cat((img_left_features, img_right_features, x), dim=-1)
-
-        for layer in self.linear_layers:
-            x = layer(x)
-        out = self.output_layer(x)
-
-        return out
-
-    @property
-    def device(self) -> torch.device:
-        return self.fc1.weight.device
+        return img_right_features, img_left_features
 
 
 if __name__ == "__main__":
@@ -154,7 +215,7 @@ if __name__ == "__main__":
     feat = torch.randn((8, 41))
 
     basic_config = VRNConfig("efficientnet_v2_m", 30, 41, hidden_layers=[128, 512, 64],
-                             use_pretrained=False, dropout_rate=0.2, use_batch_norm=False)
+                             use_pretrained=False, dropout_rate=0.2, use_batch_norm=False, model_state=ModelState.ROBOT_ONLY)
     model = VisionRobotNet(basic_config)
     out = model(img_r, img_l, feat)
 

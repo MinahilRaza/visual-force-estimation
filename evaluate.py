@@ -29,6 +29,10 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument('--use_acceleration',
                         action='store_true', default=False)
     parser.add_argument("--overfit", action='store_true', default=False)
+    parser.add_argument('--state',
+                        choices=['both', 'robot', 'vision'],
+                        required=True,
+                        help='Set the model state: both for VISION_AND_ROBOT, robot for ROBOT_ONLY, vision for VISION_ONLY')
     return parser.parse_args()
 
 

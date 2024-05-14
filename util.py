@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import torch
 from torchvision import transforms
 from dataset import VisionRobotDataset
-from models.vision_robot_net import VRNConfig
+from models.vision_robot_net import VRNConfig, STATE_MAPPING
 import constants
 
 
@@ -273,8 +273,9 @@ def get_log_dir(args: argparse.Namespace) -> str:
     normalized = int(args.normalize_targets)
     pretrained = int(args.use_pretrained)
     scheduled = "_scheduled" if args.lr_scheduler else ""
-    overfit = "_overfit" if args.overfit else ""
-    log_dir = f"runs/force_est{overfit}_{model_name}_{num_ep}ep_lr_{lr}{scheduled}_bs_{batch_size}_accel_{accel}_normalized_{normalized}_pretrained_{pretrained}_real"
+    overfit = "overfit/" if args.overfit else ""
+    state = args.state
+    log_dir = f"runs/{overfit}{state}/force_est_{model_name}_{num_ep}ep_lr_{lr}{scheduled}_bs_{batch_size}_accel_{accel}_normalized_{normalized}_pretrained_{pretrained}"
     return log_dir
 
 
@@ -299,21 +300,24 @@ def get_image_transforms(args: argparse.Namespace) -> dict[str, transforms.Compo
 
 def get_vrn_config(args: argparse.Namespace) -> VRNConfig:
     num_robot_features = get_num_robot_features(args)
+    model_state = STATE_MAPPING[args.state]
     if args.overfit:
         return VRNConfig(cnn_model_version=args.model,
                          num_image_features=constants.NUM_IMAGE_FEATURES,
                          num_robot_features=num_robot_features,
-                         hidden_layers=[256, 512, 64],
+                         hidden_layers=[1024, 256, 64],
                          use_pretrained=args.use_pretrained,
                          dropout_rate=0.0,
-                         use_batch_norm=False)
+                         use_batch_norm=False,
+                         model_state=model_state)
     return VRNConfig(cnn_model_version=args.model,
                      num_image_features=constants.NUM_IMAGE_FEATURES,
                      num_robot_features=num_robot_features,
                      hidden_layers=[256, 512, 64],
                      use_pretrained=args.use_pretrained,
                      dropout_rate=0.2,
-                     use_batch_norm=False)
+                     use_batch_norm=False,
+                     model_state=model_state)
 
 
 if __name__ == "__main__":
