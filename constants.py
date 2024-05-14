@@ -73,7 +73,7 @@ NUM_ROBOT_FEATURES = 58
 NUM_ROBOT_FEATURES_INCL_ACCEL = 78
 CNN_MODEL_VERSION = "efficientnet_v2_m"
 
-DEFAULT_TEST_RUNS = [[10, 11], []]
+DEFAULT_TEST_RUNS = [[9, 10], []]
 
 RES_NET_TRAIN_TRANSFORM = transforms.Compose([
     transforms.RandomResizedCrop((224, 224)),
