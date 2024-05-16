@@ -13,8 +13,9 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 
 from models.vision_robot_net import VisionRobotNet
+from models.robot_state_transformer import RobotStateTransformer
 from transforms import CropBottom
-from dataset import VisionRobotDataset
+from dataset import VisionRobotDataset, SequentialDataset
 import constants
 import util
 
@@ -31,8 +32,10 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("--overfit", action='store_true', default=False)
     parser.add_argument('--state',
                         choices=['both', 'robot', 'vision'],
-                        required=True,
                         help='Set the model state: both for VISION_AND_ROBOT, robot for ROBOT_ONLY, vision for VISION_ONLY')
+    parser.add_argument("--model_type", required=True,
+                        choices=['vision_robot', 'transformer'])
+
     return parser.parse_args()
 
 
@@ -122,7 +125,11 @@ def plot_forces(forces_pred: np.ndarray, forces_smooth: np.ndarray, forces_gt: n
 
 
 @torch.no_grad()
-def eval_model(model: VisionRobotNet, data_loader: DataLoader, target_scaler: MinMaxScaler, device: torch.device) -> Tuple[np.ndarray, np.ndarray]:
+def eval_model(model: VisionRobotNet,
+               data_loader: DataLoader,
+               target_scaler: MinMaxScaler,
+               device: torch.device,
+               model_type: str) -> Tuple[np.ndarray, np.ndarray]:
     model.eval()
     n_samples = len(data_loader.dataset)
     batch_size = data_loader.batch_size
@@ -130,15 +137,26 @@ def eval_model(model: VisionRobotNet, data_loader: DataLoader, target_scaler: Mi
     forces_gt = torch.zeros((n_samples, 3), device=device)
     i = 0
     for batch in tqdm(data_loader):
-        img_left = batch["img_left"].to(device)
-        img_right = batch["img_right"].to(device)
-        features = batch["features"].to(device)
-        target = batch["target"].to(device)
+        if model_type == 'vision_robot':
+            img_left = batch["img_left"].to(device)
+            img_right = batch["img_right"].to(device)
+            features = batch["features"].to(device)
+            target = batch["target"].to(device)
+            out: torch.Tensor = model(img_left, img_right, features)
+            len_batch = target.size(0)
+            forces_pred[i*batch_size: i*batch_size + len_batch] = out
+            forces_gt[i * batch_size: i * batch_size + len_batch] = target
 
-        out: torch.Tensor = model(img_left, img_right, features)
-        len_batch = batch["img_left"].size(0)
-        forces_pred[i*batch_size: i*batch_size + len_batch] = out
-        forces_gt[i * batch_size: i * batch_size + len_batch] = target
+        elif model_type == 'transformer':
+            robot_state = batch["features"].to(device)
+            target = batch["target"].to(device)
+            # Shape: [batch_size, seq_length, 3]
+            out: torch.Tensor = model(robot_state)
+            len_batch = target.size(0)
+            # Take the last value in the sequence of predictions
+            forces_pred[i*batch_size: i*batch_size + len_batch] = out[:, -1, :]
+            forces_gt[i * batch_size: i * batch_size +
+                      len_batch] = target[:, -1, :]
         i += 1
     forces_pred = forces_pred.cpu().detach().numpy()
     forces_pred = target_scaler.inverse_transform(forces_pred)
@@ -159,8 +177,13 @@ def eval() -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model_config = util.get_vrn_config(args)
-    model = VisionRobotNet(model_config)
+    if args.model_type == 'vision_robot':
+        model_config = util.get_vrn_config(args)
+        model = VisionRobotNet(model_config)
+    elif args.model_type == 'transformer':
+        config = util.get_transformer_config(args)
+        model = RobotStateTransformer(config)
+
     model.load_state_dict(torch.load(weights_path))
 
     model.to(device)
@@ -169,23 +192,35 @@ def eval() -> None:
     print(f"[INFO] Using Device: {device}")
 
     batch_size = 32
-
     path = "data"
-    data = util.load_dataset(path,
-                             force_policy_runs=[args.run],
-                             no_force_policy_runs=[],
-                             crop_runs=False,
-                             use_acceleration=args.use_acceleration)
-    dataset = VisionRobotDataset(*data,
-                                 path=path,
-                                 img_transforms=constants.RES_NET_TEST_TRANSFORM,
-                                 feature_scaler_path=constants.FEATURE_SCALER_FN)
+
+    if args.model_type == 'vision_robot':
+        data = util.load_dataset(path,
+                                 force_policy_runs=[args.run],
+                                 no_force_policy_runs=[],
+                                 crop_runs=False,
+                                 use_acceleration=args.use_acceleration)
+        dataset = VisionRobotDataset(*data,
+                                     path=path,
+                                     img_transforms=constants.RES_NET_TEST_TRANSFORM,
+                                     feature_scaler_path=constants.FEATURE_SCALER_FN)
+    elif args.model_type == 'transformer':
+
+        features, targets, _, _ = util.load_dataset(path,
+                                                    force_policy_runs=[
+                                                        args.run],
+                                                    no_force_policy_runs=[],
+                                                    crop_runs=False,
+                                                    use_acceleration=args.use_acceleration)
+        dataset = SequentialDataset(robot_features=features,
+                                    force_targets=targets,
+                                    seq_length=constants.SEQ_LENGTH)
 
     print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
-    data_loader = DataLoader(dataset, batch_size=batch_size)
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     target_scaler = joblib.load(constants.TARGET_SCALER_FN)
     forces_pred, forces_gt = eval_model(
-        model, data_loader, target_scaler, device)
+        model, data_loader, target_scaler, device, model_type=args.model_type)
     forces_pred_smooth = moving_average(
         forces_pred, window_size=constants.MOVING_AVG_WINDOW_SIZE)
     save_predictions("predictions", forces_pred, forces_pred_smooth, forces_gt)

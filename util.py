@@ -13,6 +13,7 @@ import torch
 from torchvision import transforms
 from dataset import VisionRobotDataset
 from models.vision_robot_net import VRNConfig, STATE_MAPPING
+from models.robot_state_transformer import TransformerConfig, EncoderState
 import constants
 
 
@@ -275,7 +276,8 @@ def get_log_dir(args: argparse.Namespace) -> str:
     scheduled = "_scheduled" if args.lr_scheduler else ""
     overfit = "overfit/" if args.overfit else ""
     state = args.state
-    log_dir = f"runs/{overfit}{state}/force_est_{model_name}_{num_ep}ep_lr_{lr}{scheduled}_bs_{batch_size}_accel_{accel}_normalized_{normalized}_pretrained_{pretrained}"
+    log_dir = f"runs/{overfit}{state}/force_est_{model_name}_{num_ep}ep_\
+        lr_{lr}{scheduled}_bs_{batch_size}_accel_{accel}_normalized_{normalized}_pretrained_{pretrained}"
     return log_dir
 
 
@@ -313,11 +315,25 @@ def get_vrn_config(args: argparse.Namespace) -> VRNConfig:
     return VRNConfig(cnn_model_version=args.model,
                      num_image_features=constants.NUM_IMAGE_FEATURES,
                      num_robot_features=num_robot_features,
-                     hidden_layers=[256, 512, 64],
+                     hidden_layers=[1024, 256, 64],
                      use_pretrained=args.use_pretrained,
                      dropout_rate=0.2,
                      use_batch_norm=False,
                      model_state=model_state)
+
+
+def get_transformer_config(args: argparse.Namespace) -> TransformerConfig:
+    num_robot_features = get_num_robot_features(args)
+    return TransformerConfig(
+        num_robot_features=num_robot_features,
+        hidden_layers=[128, 256],
+        dropout_rate=0.2,
+        use_batch_norm=True,
+        num_heads=4,
+        num_encoder_layers=2,
+        num_decoder_layers=2,
+        dim_feedforward=512,
+        encoder_state=EncoderState.LINEAR)
 
 
 if __name__ == "__main__":

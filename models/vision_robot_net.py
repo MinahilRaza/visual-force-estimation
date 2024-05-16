@@ -42,7 +42,7 @@ class VRNConfig:
 class VisionRobotNet(nn.Module):
     def __init__(self, config: VRNConfig) -> None:
         super().__init__()
-        self.cnn_version = config.cnn_model_version
+        self.version = config.cnn_model_version
         self.num_image_features = config.num_image_features
         self.num_robot_features = config.num_robot_features
 

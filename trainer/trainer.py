@@ -33,7 +33,7 @@ class TrainerBase(ABC):
                  lr_scheduler_config: Optional[LRSchedulerConfig] = None) -> None:
         self.model = model
         assert hasattr(
-            self.model, "cnn_version"), "Model needs to have cnn_version set!"
+            self.model, "version"), "Model needs to have version set!"
         self.data_loaders = data_loaders
         assert "train" in data_loaders and "test" in data_loaders, \
             f"{data_loaders=}"
@@ -200,6 +200,20 @@ class ForceEstimationTrainer(TrainerBase):
         features = batch["features"].to(self.device)
         target = batch["target"].to(self.device)
         out = self.model(img_left, img_right, features)
+        loss: torch.Tensor = self.criterion(out, target)
+        acc: torch.Tensor = self.acc_module(out, target)
+        return out, loss, acc
+
+
+class TransformerTrainer(TrainerBase):
+    task = "robot_state_transformer"
+
+    def run_model(self, batch: dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        robot_state = batch["features"].to(self.device)
+        target = batch["target"].to(self.device)
+
+        out = self.model(robot_state)
+
         loss: torch.Tensor = self.criterion(out, target)
         acc: torch.Tensor = self.acc_module(out, target)
         return out, loss, acc

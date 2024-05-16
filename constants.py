@@ -44,8 +44,10 @@ START_END_TIMES = {
     "force_policy": {
         1: [(0, -1)],
         2: [(0, -1)],
-        3: [(800, -1)],
-        4: [(400, 1200), (2500, -1)],
+        # 3: [(800, -1)],
+        # 4: [(400, 1200), (2500, -1)],
+        3: [(0, -1)],
+        4: [(0, -1)],
         6: [(2000, -1)],
         8: [(500, -1)],
         9: [(700, 1700), (2200, -1)],
@@ -72,6 +74,8 @@ NUM_IMAGE_FEATURES = 30
 NUM_ROBOT_FEATURES = 58
 NUM_ROBOT_FEATURES_INCL_ACCEL = 78
 CNN_MODEL_VERSION = "efficientnet_v2_m"
+
+SEQ_LENGTH = 10
 
 DEFAULT_TEST_RUNS = [[9, 10], []]
 

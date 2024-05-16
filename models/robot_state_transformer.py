@@ -27,11 +27,13 @@ class TransformerConfig:
 
 
 class RobotStateTransformer(nn.Module):
-    def __init__(self, config: TransformerConfig) -> None:
+    def __init__(self, config: TransformerConfig, seed: int = 42) -> None:
         super().__init__()
+        self.version = "transformer"
         self.num_robot_features = config.num_robot_features
         self.max_seq_length = config.max_seq_length
         self.encoder_state = config.encoder_state
+        self.config = config
 
         if self.encoder_state == EncoderState.LINEAR:
             self.robot_encoder = LinearEncoder(
@@ -59,14 +61,22 @@ class RobotStateTransformer(nn.Module):
         )
 
         self.output_layer = nn.Linear(config.hidden_layers[-1], 3)
-        self._initialize_weights()
+        self._initialize_weights(seed)
 
-    def _initialize_weights(self):
+    def _initialize_weights(self, seed: int):
+        torch.manual_seed(seed)
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 nn.init.xavier_uniform_(m.weight)
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Conv1d):
+                nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, robot_state: torch.Tensor) -> torch.Tensor:
         """
@@ -81,8 +91,6 @@ class RobotStateTransformer(nn.Module):
         if self.encoder_state == EncoderState.LINEAR:
             encoded_features = encoded_features.view(
                 batch_size, seq_length, -1)
-
-        print(f"{encoded_features.shape=}")
 
         # Transformer expects inputs in (seq_length, batch_size, features)
         if self.encoder_state == EncoderState.LINEAR:
