@@ -12,6 +12,29 @@ from PIL import Image
 from pathlib import Path
 
 
+class SequentialDataset(Dataset):
+    """
+    Dataset class to handle sequences of robot state features and force targets.
+    """
+
+    def __init__(self, robot_features: np.ndarray, force_targets: np.ndarray, seq_length: int) -> None:
+        self.robot_features = torch.from_numpy(robot_features).float()
+        self.force_targets = torch.from_numpy(force_targets).float()
+        self.seq_length = seq_length
+        self.num_samples = len(robot_features) - seq_length + 1
+
+    def __len__(self) -> int:
+        return self.num_samples
+
+    def __getitem__(self, idx):
+        start = idx
+        end = start + self.seq_length
+        return {
+            "features": self.robot_features[start:end],
+            "target": self.force_targets[start:end]
+        }
+
+
 class AutoEncoderDataset(Dataset):
     """
     Dataset class to store left and right images to train an auto encoder
