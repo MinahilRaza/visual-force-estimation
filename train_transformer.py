@@ -26,6 +26,11 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("--overfit", action='store_true', default=False)
     parser.add_argument("--seq_length", required=True,
                         type=int, help="Length of the input sequences")
+    parser.add_argument('--state',
+                        choices=['linear', 'conv'],
+                        required=True,
+                        help='Set the model state: linear for using a linear feature extractor, conv for a Conv1 Layer'
+                        )
 
     return parser.parse_args()
 
@@ -34,7 +39,6 @@ def train():
     args = parse_cmd_line()
     args.model = "transformer"
     args.use_pretrained = False
-    args.state = "linear"
 
     print("Training Robot State Transformer Network")
 
@@ -57,20 +61,22 @@ def train():
         features, targets, _, _ = util.load_dataset(path=data_dir,
                                                     force_policy_runs=run_nums[s][0],
                                                     no_force_policy_runs=run_nums[s][1],
+                                                    sequential=True,
                                                     use_acceleration=args.use_acceleration,
                                                     crop_runs=False)
-        dataset = SequentialDataset(robot_features=features,
-                                    force_targets=targets,
-                                    seq_length=args.seq_length)
+        assert isinstance(features, list)
+        assert isinstance(targets, list)
+        dataset_kwargs = {"feature_scaler_path": constants.FEATURE_SCALER_FN,
+                          "target_scaler_path": constants.TARGET_SCALER_FN} if s == "test" else {}
+        dataset = SequentialDataset(robot_features_list=features,
+                                    force_targets_list=targets,
+                                    normalize_targets=args.normalize_targets,
+                                    seq_length=args.seq_length,
+                                    **dataset_kwargs)
         print(
             f"[INFO] Loaded Sequential Dataset {s} with {len(dataset)} samples!")
         data_loaders[s] = DataLoader(
             dataset, batch_size=args.batch_size, shuffle=(s == "train"), drop_last=True)
-
-    util.apply_scaling_to_datasets(
-        data_loaders["train"].dataset,
-        data_loaders["test"].dataset,
-        normalize_targets=args.normalize_targets)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -82,6 +88,7 @@ def train():
     print(f"[INFO] Training Model with Seq Length: {args.seq_length}")
     print(f"[INFO] Batch Size: {args.batch_size}")
     print(f"[INFO] Learning Rate: {args.lr}")
+    print(f"[INFO] State: {args.state}")
 
     weights_dir = util.create_weights_path(
         "robot_state_transformer", args.num_epochs) if not args.out_dir else args.out_dir

@@ -119,7 +119,7 @@ def plot_forces(forces_pred: np.ndarray,
             time_axis[:-1], forces_smooth[:, i], label='Smoothed Predictions', linestyle='-', marker='')
         plt.plot(time_axis[:-1], forces_gt[:-1, i],
                  label='Ground Truth', linestyle='-', marker='')
-        title = f"Force in {ax} Direction, Run {run}"
+        title = f"Force in {ax} Direction, Run {run}, Avg RMSE: {avg_rmse:.4f}"
         plt.title(title)
         plt.xlabel('Time')
         plt.ylabel('Force [N]')
@@ -206,6 +206,7 @@ def eval() -> None:
         data = util.load_dataset(path,
                                  force_policy_runs=[args.run],
                                  no_force_policy_runs=[],
+                                 sequential=False,
                                  crop_runs=False,
                                  use_acceleration=args.use_acceleration)
         dataset = VisionRobotDataset(*data,
@@ -218,6 +219,7 @@ def eval() -> None:
                                                     force_policy_runs=[
                                                         args.run],
                                                     no_force_policy_runs=[],
+                                                    sequential=True,
                                                     crop_runs=False,
                                                     use_acceleration=args.use_acceleration)
         dataset = SequentialDataset(robot_features=features,

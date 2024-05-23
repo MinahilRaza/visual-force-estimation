@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Tuple, Dict
+from typing import List, Optional, Tuple, Dict, Union
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -32,12 +32,17 @@ def get_img_paths(cam: str, excel_df: pd.DataFrame) -> List[str]:
 
 def load_data(runs: dict[str, List[int]],
               data_dir: str,
+              sequential: bool,
               create_plots: bool = False,
               crop_runs: bool = True,
-              use_acceleration: bool = False) -> Tuple[np.ndarray,
-                                                       np.ndarray,
-                                                       List[str],
-                                                       List[str]]:
+              use_acceleration: bool = False) -> Union[Tuple[np.ndarray,
+                                                             np.ndarray,
+                                                             List[str],
+                                                             List[str]],
+                                                       Tuple[List[np.ndarray],
+                                                             List[np.ndarray],
+                                                             List[str],
+                                                             List[str]]]:
     assert isinstance(runs, dict), f"{runs=}"
 
     all_X = []
@@ -93,8 +98,9 @@ def load_data(runs: dict[str, List[int]],
                 all_img_left_paths += img_left_paths
                 all_img_right_paths += img_right_paths
 
-    all_X = np.concatenate(all_X, axis=0)
-    all_y = np.concatenate(all_y, axis=0)
+    if not sequential:
+        all_X = np.concatenate(all_X, axis=0)
+        all_y = np.concatenate(all_y, axis=0)
 
     return all_X, all_y, all_img_left_paths, all_img_right_paths
 
@@ -155,6 +161,7 @@ def set_velocity(df: pd.DataFrame, position_col: str, velocity_col: str):
 def load_dataset(path: str,
                  force_policy_runs: List[int],
                  no_force_policy_runs: List[int],
+                 sequential: bool,
                  create_plots: bool = False,
                  crop_runs: bool = True,
                  use_acceleration: bool = False) -> Tuple[np.ndarray,
@@ -174,7 +181,7 @@ def load_dataset(path: str,
         "no_force_policy": no_force_policy_runs
     }
 
-    return load_data(runs, roll_out_dir, create_plots=create_plots, crop_runs=crop_runs, use_acceleration=use_acceleration)
+    return load_data(runs, roll_out_dir, sequential=sequential, create_plots=create_plots, crop_runs=crop_runs, use_acceleration=use_acceleration)
 
 
 def apply_scaling_to_datasets(train_dataset: VisionRobotDataset,
@@ -276,8 +283,9 @@ def get_log_dir(args: argparse.Namespace) -> str:
     scheduled = "_scheduled" if args.lr_scheduler else ""
     overfit = "overfit/" if args.overfit else ""
     state = args.state
-    log_dir = f"runs/{overfit}{state}/force_est_{model_name}_{num_ep}ep_\
-        lr_{lr}{scheduled}_bs_{batch_size}_accel_{accel}_normalized_{normalized}_pretrained_{pretrained}"
+    seq_length = args.seq_length
+    log_dir = f"runs/{model_name}/{overfit}{state}/force_est_{num_ep}ep_" + \
+        f"lr_{lr}{scheduled}_seq_length_{seq_length}_bs_{batch_size}_accel_{accel}_normalized_{normalized}"
     return log_dir
 
 
@@ -325,6 +333,7 @@ def get_vrn_config(args: argparse.Namespace) -> VRNConfig:
 def get_transformer_config(args: argparse.Namespace) -> TransformerConfig:
     num_robot_features = get_num_robot_features(args)
     dropout_rate = 0.0 if args.overfit else 0.2
+    encoder_state = EncoderState.LINEAR if args.state == "linear" else EncoderState.CONV
     return TransformerConfig(
         num_robot_features=num_robot_features,
         hidden_layers=[128, 256],
@@ -334,7 +343,7 @@ def get_transformer_config(args: argparse.Namespace) -> TransformerConfig:
         num_encoder_layers=2,
         num_decoder_layers=2,
         dim_feedforward=256,
-        encoder_state=EncoderState.LINEAR)
+        encoder_state=encoder_state)
 
 
 if __name__ == "__main__":

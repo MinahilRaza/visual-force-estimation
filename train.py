@@ -70,6 +70,7 @@ def train():
             data_dir,
             force_policy_runs=run_nums[s][0],
             no_force_policy_runs=run_nums[s][1],
+            sequential=False,
             use_acceleration=args.use_acceleration)
         dataset = VisionRobotDataset(
             *data, path=data_dir, img_transforms=data_transforms[s])

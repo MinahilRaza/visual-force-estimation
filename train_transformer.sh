@@ -9,7 +9,8 @@ python train_transformer.py --batch_size 32 \
      --out_dir $fe_model_path \
      --normalize_targets \
      --use_acceleration \
-     --seq_length 10
+     --seq_length 20 \
+     --state linear
 
 python evaluate.py --run 1 --weights $fe_model_path --model res_net --model_type transformer --use_acceleration --state $fe_model_state
 python evaluate.py --run 2 --weights $fe_model_path --model res_net --model_type transformer --use_acceleration --state $fe_model_state
