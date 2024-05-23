@@ -1,11 +1,11 @@
-import os
 import torch
 import argparse
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from models.robot_state_transformer import RobotStateTransformer, TransformerConfig, EncoderState
+from models.robot_state_transformer import RobotStateTransformer
 from trainer.trainer import TransformerTrainer, LRSchedulerConfig
 from dataset import SequentialDataset
+
 import util
 import constants
 
@@ -79,7 +79,7 @@ def train():
     model.to(device)
 
     print(f"[INFO] Using Device: {device}")
-    print(f"[INFO] Training Model with Seq Length: {constants.SEQ_LENGTH}")
+    print(f"[INFO] Training Model with Seq Length: {args.seq_length}")
     print(f"[INFO] Batch Size: {args.batch_size}")
     print(f"[INFO] Learning Rate: {args.lr}")
 
