@@ -143,8 +143,8 @@ class TrainerBase(ABC):
             epoch_logs.append({
                 "Test Loss": loss_phase['test'].item(),
                 "Test RMSE": acc_phase['test'].item()})
-            print(f"Train Loss: {loss_phase['train'].item():.2f}\t \
-                Test Loss: {loss_phase['test'].item():.2f} Test RMSE: {acc_phase['test'].item():.2f}")
+            print(f"Train Loss: {loss_phase['train'].item():.4f}\t \
+                Test Loss: {loss_phase['test'].item():.4f} Test RMSE: {acc_phase['test'].item():.4f}")
         torch.save(self.model.state_dict(), self.save_path_last)
         self.save_logs(epoch_logs, best_acc)
         self.writer.flush()
@@ -210,9 +210,9 @@ class TransformerTrainer(TrainerBase):
 
     def run_model(self, batch: dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         robot_state = batch["features"].to(self.device)
-        target = batch["target"].to(self.device)
+        target = batch["target"].to(self.device)[:, -1, :]
 
-        out = self.model(robot_state)
+        out = self.model(robot_state)[:, -1, :]
 
         loss: torch.Tensor = self.criterion(out, target)
         acc: torch.Tensor = self.acc_module(out, target)

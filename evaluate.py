@@ -7,6 +7,7 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
 
 import torch
 from torchvision import transforms
@@ -81,7 +82,12 @@ def moving_average(data: np.ndarray, window_size: int) -> np.ndarray:
     return moving_avg
 
 
-def plot_forces(forces_pred: np.ndarray, forces_smooth: np.ndarray, forces_gt: np.ndarray, run: int, pdf: bool):
+def plot_forces(forces_pred: np.ndarray,
+                forces_smooth: np.ndarray,
+                forces_gt: np.ndarray,
+                avg_rmse: float,
+                run: int,
+                pdf: bool):
     assert forces_pred.shape == forces_gt.shape
     assert forces_pred.shape[1] == 3
 
@@ -97,7 +103,7 @@ def plot_forces(forces_pred: np.ndarray, forces_smooth: np.ndarray, forces_gt: n
                  label='Predicted', linestyle='-', marker='')
         plt.plot(time_axis, forces_gt[:, i],
                  label='Ground Truth', linestyle='-', marker='')
-        title = f"Force in {ax} Direction, Run {run}"
+        title = f"Force in {ax} Direction, Run {run}, Avg RMSE: {avg_rmse:.4f}"
         plt.title(title)
         plt.xlabel('Time')
         plt.ylabel('Force [N]')
@@ -161,7 +167,9 @@ def eval_model(model: VisionRobotNet,
     forces_pred = forces_pred.cpu().detach().numpy()
     forces_pred = target_scaler.inverse_transform(forces_pred)
     forces_gt = forces_gt.cpu().detach().numpy()
-    return forces_pred, forces_gt
+    avg_rmse = np.sqrt(mean_squared_error(
+        forces_gt, forces_pred, multioutput='uniform_average'))
+    return forces_pred, forces_gt, avg_rmse
 
 
 def eval() -> None:
@@ -214,17 +222,19 @@ def eval() -> None:
                                                     use_acceleration=args.use_acceleration)
         dataset = SequentialDataset(robot_features=features,
                                     force_targets=targets,
-                                    seq_length=constants.SEQ_LENGTH)
+                                    seq_length=constants.SEQ_LENGTH,
+                                    feature_scaler_path=constants.FEATURE_SCALER_FN)
 
     print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     target_scaler = joblib.load(constants.TARGET_SCALER_FN)
-    forces_pred, forces_gt = eval_model(
+    forces_pred, forces_gt, avg_rmse = eval_model(
         model, data_loader, target_scaler, device, model_type=args.model_type)
     forces_pred_smooth = moving_average(
         forces_pred, window_size=constants.MOVING_AVG_WINDOW_SIZE)
     save_predictions("predictions", forces_pred, forces_pred_smooth, forces_gt)
-    plot_forces(forces_pred, forces_pred_smooth, forces_gt, args.run, args.pdf)
+    plot_forces(forces_pred, forces_pred_smooth,
+                forces_gt, avg_rmse, args.run, args.pdf)
 
 
 if __name__ == "__main__":

@@ -63,12 +63,19 @@ START_END_TIMES = {
 
 EXCEL_FILE_NAMES = {
     "force_policy": {
-        key: f"dec6_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" for key in range(1, 15)
+        key: (f"dec6_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" if 1 <= key <= 15 else
+              f"dec19_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" if 16 <= key <= 30 else
+              f"dec20_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx")
+        for key in range(1, 50)
     },
     "no_force_policy": {
-        key: f"dec6_no_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" for key in range(1, 5)
+        key: (f"dec6_no_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" if 1 <= key <= 15 else
+              f"dec19_no_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" if 16 <= key <= 30 else
+              f"dec20_no_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx")
+        for key in range(1, 50)
     },
 }
+
 
 NUM_IMAGE_FEATURES = 30
 NUM_ROBOT_FEATURES = 58
@@ -77,7 +84,7 @@ CNN_MODEL_VERSION = "efficientnet_v2_m"
 
 SEQ_LENGTH = 10
 
-DEFAULT_TEST_RUNS = [[9, 10], []]
+DEFAULT_TEST_RUNS = [[17, 18, 19, 20], [8, 9, 10]]
 
 RES_NET_TRAIN_TRANSFORM = transforms.Compose([
     transforms.RandomResizedCrop((224, 224)),

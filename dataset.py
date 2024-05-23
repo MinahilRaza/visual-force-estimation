@@ -17,11 +17,21 @@ class SequentialDataset(Dataset):
     Dataset class to handle sequences of robot state features and force targets.
     """
 
-    def __init__(self, robot_features: np.ndarray, force_targets: np.ndarray, seq_length: int) -> None:
+    def __init__(self, robot_features: np.ndarray, force_targets: np.ndarray, seq_length: int, feature_scaler_path: Optional[str] = None) -> None:
         self.robot_features = torch.from_numpy(robot_features).float()
         self.force_targets = torch.from_numpy(force_targets).float()
         self.seq_length = seq_length
         self.num_samples = len(robot_features) - seq_length + 1
+
+        if feature_scaler_path:
+            assert os.path.isfile(
+                feature_scaler_path), f"{feature_scaler_path=}"
+            self.feature_scaler = joblib.load(feature_scaler_path)
+            self.robot_features = torch.from_numpy(
+                self.feature_scaler.transform(robot_features)
+            ).float()
+        else:
+            self.feature_scaler = None
 
     def __len__(self) -> int:
         return self.num_samples
