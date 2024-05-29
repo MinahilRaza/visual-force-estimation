@@ -145,6 +145,7 @@ class TrainerBase(ABC):
                 "Test RMSE": acc_phase['test'].item()})
             print(f"Train Loss: {loss_phase['train'].item():.4f}\t \
                 Test Loss: {loss_phase['test'].item():.4f} Test RMSE: {acc_phase['test'].item():.4f}")
+        self.best_test_acc = best_acc
         torch.save(self.model.state_dict(), self.save_path_last)
         self.save_logs(epoch_logs, best_acc)
         self.writer.flush()
