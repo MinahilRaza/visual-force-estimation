@@ -332,17 +332,17 @@ def get_vrn_config(args: argparse.Namespace) -> VRNConfig:
 
 def get_transformer_config(args: argparse.Namespace) -> TransformerConfig:
     num_robot_features = get_num_robot_features(args)
-    dropout_rate = 0.0 if args.overfit else 0.2
+    dropout_rate = 0.0 if args.overfit else constants.DROPOUT_RATE
     encoder_state = EncoderState.LINEAR if args.state == "linear" else EncoderState.CONV
     return TransformerConfig(
         num_robot_features=num_robot_features,
-        hidden_layers=[128, 256],
+        hidden_layers=constants.HIDDEN_LAYERS,
         dropout_rate=dropout_rate,
         use_batch_norm=True,
-        num_heads=4,
-        num_encoder_layers=2,
-        num_decoder_layers=2,
-        dim_feedforward=256,
+        num_heads=constants.NUM_HEADS,
+        num_encoder_layers=constants.NUM_ENCODER_LAYERS,
+        num_decoder_layers=constants.NUM_DECODER_LAYERS,
+        dim_feedforward=constants.DIM_FEEDFORWARD,
         encoder_state=encoder_state)
 
 

@@ -11,7 +11,7 @@ from dataset import SequentialDataset
 import util
 import constants
 
-NUM_EPOCHS = 100
+NUM_EPOCHS = 50
 FORCE_RUNS = [1, 2, 3, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15]
 NO_FORCE_RUNS = [1, 2, 3, 4, 5, 6]
 USE_ACCELERATION = True
@@ -118,15 +118,16 @@ def train_and_evaluate(batch_size: int,
 
 
 def hyperparameter_search():
+    global COUNT
     batch_sizes = [16, 32, 64]
-    learning_rates = [1e-4, 1e-5, 1e-6, 1e-7]
+    learning_rates = [1e-4, 1e-5, 1e-6]
     hidden_layers = [[128, 256], [256, 512]]
-    num_heads_options = [2, 4]
-    num_encoder_layers_options = [2, 4]
-    num_decoder_layers_options = [2, 4]
-    dim_feedforward_options = [256, 512]
-    dropout_rates = [0.2, 0.3]
-    seq_lengths = [5, 10, 20, 40]
+    num_heads_options = [4]
+    num_encoder_layers_options = [4]
+    num_decoder_layers_options = [2]
+    dim_feedforward_options = [256]
+    dropout_rates = [0.3]
+    seq_lengths = [5, 10, 20]
 
     best_rmse = float('inf')
     best_params = None

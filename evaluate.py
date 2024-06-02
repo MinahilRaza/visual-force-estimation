@@ -32,7 +32,7 @@ def parse_cmd_line() -> argparse.Namespace:
                         action='store_true', default=False)
     parser.add_argument("--overfit", action='store_true', default=False)
     parser.add_argument('--state',
-                        choices=['both', 'robot', 'vision'],
+                        choices=['both', 'robot', 'vision', 'linear', 'conv'],
                         help='Set the model state: both for VISION_AND_ROBOT, robot for ROBOT_ONLY, vision for VISION_ONLY')
     parser.add_argument("--model_type", required=True,
                         choices=['vision_robot', 'transformer'])
@@ -222,10 +222,12 @@ def eval() -> None:
                                                     sequential=True,
                                                     crop_runs=False,
                                                     use_acceleration=args.use_acceleration)
-        dataset = SequentialDataset(robot_features=features,
-                                    force_targets=targets,
+        dataset = SequentialDataset(robot_features_list=features,
+                                    force_targets_list=targets,
+                                    normalize_targets=True,
                                     seq_length=constants.SEQ_LENGTH,
-                                    feature_scaler_path=constants.FEATURE_SCALER_FN)
+                                    feature_scaler_path=constants.FEATURE_SCALER_FN,
+                                    target_scaler_path=constants.TARGET_SCALER_FN)
 
     print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
