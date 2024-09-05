@@ -14,6 +14,12 @@ from trainer.trainer import AutoEncoderTrainer, VarAutoEncoderTrainer
 
 
 def parse_cmd_line() -> argparse.Namespace:
+    """
+    Parse command line arguments.
+
+    Returns:
+        argparse.Namespace: The parsed command line arguments.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", required=True, type=int)
     parser.add_argument("--lr", required=True, type=float)
@@ -24,6 +30,17 @@ def parse_cmd_line() -> argparse.Namespace:
 
 
 def train():
+    """
+    Train a Variational Autoencoder on the image dataset.
+
+    Args:
+        --batch_size: The batch size to use when training the model.
+        --lr: The learning rate to use when training the model.
+        --num_epochs: The number of epochs to train the model for.
+        --base_model: The base model to use for the autoencoder. Can be either "resnet18" or "resnet50".
+        --out_dir: The directory to save the trained model weights in. If not specified, will save in
+            "weights/auto_encoder/<base_model>_<num_epochs>_epochs_lr_<lr>".
+    """
     print("Training Auto Encoder Network")
     args = parse_cmd_line()
     data_transforms = {"train": constants.RES_NET_TEST_TRANSFORM,
@@ -42,7 +59,7 @@ def train():
 
     for s in sets:
         _, _, img_left_paths, img_right_paths = util.load_dataset(
-            data_dir, force_policy_runs=run_nums[s][0], no_force_policy_runs=run_nums[s][1], crop_runs=True)
+            data_dir, force_policy_runs=run_nums[s][0], no_force_policy_runs=run_nums[s][1], crop_runs=True, sequential=False)
         dataset = AutoEncoderDataset(
             img_left_paths=img_left_paths,
             img_right_paths=img_right_paths,

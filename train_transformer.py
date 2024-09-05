@@ -36,6 +36,34 @@ def parse_cmd_line() -> argparse.Namespace:
 
 
 def train():
+    """
+    Train a Robot State Transformer model.
+
+    This function trains a Robot State Transformer model based on the command line arguments.
+
+    The following hyperparameters can be set through command line arguments:
+
+    - batch_size: The batch size to use.
+    - lr: The learning rate to use.
+    - num_epochs: The number of epochs to train for.
+    - seq_length: The length of the input sequences.
+    - state: The model state to use, either 'linear' for a linear feature extractor or 'conv' for a Conv1 Layer feature extractor.
+    - force_runs: The runs to use for training.
+    - no_force_runs: The runs not to use for training.
+    - lr_scheduler: Whether or not to use a learning rate scheduler.
+    - use_acceleration: Whether or not to use acceleration as an input feature.
+    - normalize_targets: Whether or not to normalize the targets.
+    - out_dir: The directory to save the trained model weights in. If not specified, will save in
+        "weights/robot_state_transformer/<num_epochs>_epochs_lr_<lr>".
+    - overfit: If set, will only use one batch for training and testing.
+
+    The function will print out various information about the training process, including the batch size, learning rate,
+    number of epochs, sequence length, model state, and whether or not acceleration is being used.
+
+    The function will also save the trained model weights in the specified directory.
+
+    :return: None
+    """
     args = parse_cmd_line()
     args.model = "transformer"
     args.use_pretrained = False

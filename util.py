@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Tuple, Dict, Union
+from typing import List, Optional, Tuple, Union
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -259,7 +259,7 @@ def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool):
     plt.plot(time_axis, forces[:, 2],
              label='z-axis', linestyle='-', marker='')
     policy_name = "Force Policy" if policy == "force_policy" else "No Force Policy"
-    plt.title(f"{policy_name}, Run {run_nr}")
+    plt.title(f"Example of Force Data for a single Policy Rollout")
     plt.xlabel('Time')
     plt.ylabel('Force [N]')
     plt.legend()
@@ -348,7 +348,7 @@ def get_transformer_config(args: argparse.Namespace) -> TransformerConfig:
 
 if __name__ == "__main__":
     all_X, all_y, all_img_left_paths, all_img_right_paths = load_dataset(
-        path="data", force_policy_runs=[1, 2, 3, 4, 6], no_force_policy_runs=[1, 4], create_plots=False, )
+        path="data", force_policy_runs=[3], no_force_policy_runs=[], create_plots=True, sequential=False)
 
     assert all_X.shape == (2549, 44), f"{all_X.shape=}"
     assert all_y.shape == (2549, 3)

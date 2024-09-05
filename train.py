@@ -44,6 +44,31 @@ def parse_cmd_line() -> argparse.Namespace:
 
 
 def train():
+    """
+    Train a VisionRobotNet model.
+
+    This function trains a VisionRobotNet model based on the command line arguments.
+
+    The following hyperparameters can be set through command line arguments:
+
+    - batch_size: The batch size to use.
+    - lr: The learning rate to use.
+    - num_epochs: The number of epochs to train for.
+    - model: The model to use, either 'res_net' or 'efficient_net'.
+    - force_runs: The runs to use for training.
+    - no_force_runs: The runs not to use for training.
+    - lr_scheduler: Whether or not to use a learning rate scheduler.
+    - use_acceleration: Whether or not to use acceleration as an input feature.
+    - normalize_targets: Whether or not to normalize the targets.
+    - out_dir: The directory to save the trained model weights in. If not specified, will save in
+        "weights/force_estimation_network/<num_epochs>_epochs_lr_<lr>".
+    - overfit: If set, will only use one batch for training and testing.
+
+    The function will print out various information about the training process, including the batch size, learning rate,
+    number of epochs, sequence length, model state, and whether or not acceleration is being used.
+
+    The function will also save the trained model weights in the specified directory.
+    """
     args = parse_cmd_line()
     print("Training Force Estimation Network")
 

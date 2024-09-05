@@ -1,11 +1,10 @@
 import json
 from typing import Dict, List
 import torch
-import argparse
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from models.robot_state_transformer import RobotStateTransformer, TransformerConfig, EncoderState
-from trainer.trainer import TransformerTrainer, LRSchedulerConfig
+from trainer.trainer import TransformerTrainer
 from dataset import SequentialDataset
 
 import util
