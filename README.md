@@ -17,7 +17,7 @@ The project implements and evaluates several deep learning models for force esti
 1. Clone the repository:
 
    ```
-   git clone https://github.com/your-username/visual-force-estimation.git
+   git clone git@github.com:TimReX-22/visual_force_estimation.git
    cd visual-force-estimation
    ```
 
