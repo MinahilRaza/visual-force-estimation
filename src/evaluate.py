@@ -87,48 +87,65 @@ def plot_forces(forces_pred: np.ndarray,
                 forces_gt: np.ndarray,
                 avg_rmse: float,
                 run: int,
-                pdf: bool):
+                pdf: bool,
+                save_dir: str = 'plots/transformer'):
+    """
+    Plots forces for x, y, z axes as subplots and saves the figures to the specified directory.
+
+    Args:
+        forces_pred: Predicted forces (Nx3 array).
+        forces_smooth: Smoothed predicted forces (Nx3 array).
+        forces_gt: Ground truth forces (Nx3 array).
+        avg_rmse: Average RMSE value for the run.
+        run: Run number.
+        pdf: Whether to save the plots as PDFs (if False, saves as PNG).
+        save_dir: Directory to save the plots (default is 'plots/').
+    """
     assert forces_pred.shape == forces_gt.shape
     assert forces_pred.shape[1] == 3
 
-    os.makedirs('plots', exist_ok=True)
+    os.makedirs(save_dir, exist_ok=True)
 
     time_axis = np.arange(forces_pred.shape[0])
-
     axes = ["X", "Y", "Z"]
 
-    for i, ax in enumerate(axes):
-        plt.figure()
-        plt.plot(time_axis, forces_pred[:, i],
-                 label='Predicted', linestyle='-', marker='')
-        plt.plot(time_axis, forces_gt[:, i],
-                 label='Ground Truth', linestyle='-', marker='')
-        title = f"Force in {ax} Direction, Run {run}, Avg RMSE: {avg_rmse:.4f}"
-        plt.title(title)
-        plt.xlabel('Time')
-        plt.ylabel('Force [N]')
-        plt.ylim(-1, 1)
-        plt.legend()
-        save_path = f"plots/pred_run_{run}_force_{ax}.{'pdf' if pdf else 'png'}"
-        plt.savefig(save_path)
-        plt.close()
+    # Create a figure with three subplots for raw predictions
+    fig, axs = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
+    fig.suptitle(f"Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")
 
-    for i, ax in enumerate(axes):
-        plt.figure()
-        plt.plot(
-            time_axis[:-1], forces_smooth[:, i], label='Smoothed Predictions', linestyle='-', marker='')
-        plt.plot(time_axis[:-1], forces_gt[:-1, i],
-                 label='Ground Truth', linestyle='-', marker='')
-        title = f"Force in {ax} Direction, Run {run}, Avg RMSE: {avg_rmse:.4f}"
-        plt.title(title)
-        plt.xlabel('Time')
-        plt.ylabel('Force [N]')
-        plt.ylim(-1, 1)
-        plt.legend()
-        save_path = f"plots/pred_smooth_run_{run}_force_{ax}.{'pdf' if pdf else 'png'}"
-        plt.savefig(save_path)
-        plt.close()
+    for i, ax_label in enumerate(axes):
+        axs[i].plot(time_axis, forces_pred[:, i], label='Predicted', linestyle='-', marker='')
+        axs[i].plot(time_axis, forces_gt[:, i], label='Ground Truth', linestyle='-', marker='')
+        axs[i].set_title(f"Force in {ax_label} Direction")
+        axs[i].set_ylabel('Force [N]')
+        axs[i].set_ylim(-1, 1)
+        axs[i].legend()
 
+    axs[-1].set_xlabel('Time')
+
+    save_path = os.path.join(save_dir, f"pred_run_{run}_forces.{'pdf' if pdf else 'png'}")
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust layout to fit the suptitle
+    plt.savefig(save_path)
+    plt.close()
+
+    # Create a second figure with three subplots for smoothed predictions
+    fig, axs = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
+    fig.suptitle(f"Smoothed Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")
+
+    for i, ax_label in enumerate(axes):
+        axs[i].plot(time_axis[:-1], forces_smooth[:, i], label='Smoothed Predictions', linestyle='-', marker='')
+        axs[i].plot(time_axis[:-1], forces_gt[:-1, i], label='Ground Truth', linestyle='-', marker='')
+        axs[i].set_title(f"Force in {ax_label} Direction")
+        axs[i].set_ylabel('Force [N]')
+        axs[i].set_ylim(-1, 1)
+        axs[i].legend()
+
+    axs[-1].set_xlabel('Time')
+
+    save_path = os.path.join(save_dir, f"pred_smooth_run_{run}_forces.{'pdf' if pdf else 'png'}")
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig(save_path)
+    plt.close()
 
 @torch.no_grad()
 def eval_model(model: VisionRobotNet,
@@ -167,6 +184,7 @@ def eval_model(model: VisionRobotNet,
     forces_pred = forces_pred.cpu().detach().numpy()
     forces_pred = target_scaler.inverse_transform(forces_pred)
     forces_gt = forces_gt.cpu().detach().numpy()
+    forces_gt = target_scaler.inverse_transform(forces_gt)
     avg_rmse = np.sqrt(mean_squared_error(
         forces_gt, forces_pred, multioutput='uniform_average'))
     return forces_pred, forces_gt, avg_rmse
@@ -238,7 +256,8 @@ def eval() -> None:
         forces_pred, window_size=constants.MOVING_AVG_WINDOW_SIZE)
     save_predictions("predictions", forces_pred, forces_pred_smooth, forces_gt)
     plot_forces(forces_pred, forces_pred_smooth,
-                forces_gt, avg_rmse, args.run, args.pdf)
+                forces_gt, avg_rmse, args.run, args.pdf,
+                f'plots/{weights_path.split("/")[-2]}')
 
 
 if __name__ == "__main__":
