@@ -37,7 +37,7 @@ The project includes shell scripts to simplify the training process for differen
    Use the `train_nn.sh` script to train the Vision Robot Network:
 
    ```
-   ./train_nn.sh
+   ./scripts/train_nn.sh
    ```
 
    This script sets up parameters such as batch size, learning rate, number of epochs, and which runs to use for training. It then calls `train.py` with these parameters.
@@ -46,7 +46,7 @@ The project includes shell scripts to simplify the training process for differen
    Use the `train_transformer.sh` script to train the Robot State Transformer:
 
    ```
-   ./train_transformer.sh
+   ./scripts/train_transformer.sh
    ```
 
    This script configures the transformer-specific parameters like sequence length and state type, in addition to general training parameters. It then executes `train_transformer.py`.
@@ -54,7 +54,7 @@ The project includes shell scripts to simplify the training process for differen
 3. Autoencoder:
    The autoencoder training is typically included in the `main.sh` script. To train the autoencoder, set the `TRAIN_AUTOENCODER` flag to true in `main.sh` and run:
    ```
-   ./main.sh
+   ./scripts/main.sh
    ```
 
 Each of these scripts can be modified to adjust hyperparameters or dataset selections as needed.

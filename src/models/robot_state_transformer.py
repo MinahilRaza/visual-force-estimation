@@ -55,9 +55,10 @@ class RobotStateTransformer(nn.Module):
             d_model=config.hidden_layers[-1],
             nhead=config.num_heads,
             num_encoder_layers=config.num_encoder_layers,
-            num_decoder_layers=config.num_decoder_layers,
-            dim_feedforward=config.dim_feedforward,
-            dropout=config.dropout_rate
+            num_decoder_layers=config.num_decoder_layers, # might not be needed
+            dim_feedforward=config.dim_feedforward, # 4 times attention dimension D (encoder output)
+            dropout=config.dropout_rate, # 0.1, 0.2
+            norm_first = False # True
         )
 
         self.output_layer = nn.Linear(config.hidden_layers[-1], 3)

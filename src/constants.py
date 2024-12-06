@@ -66,13 +66,13 @@ EXCEL_FILE_NAMES = {
         key: (f"dec6_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" if 1 <= key <= 15 else
               f"dec19_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" if 16 <= key <= 30 else
               f"dec20_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx")
-        for key in range(1, 50)
+        for key in range(1, 51)
     },
     "no_force_policy": {
         key: (f"dec6_no_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" if 1 <= key <= 15 else
               f"dec19_no_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx" if 16 <= key <= 30 else
               f"dec20_no_force_no_TA_lastP_randomPosHeight_cs100_run{key}.xlsx")
-        for key in range(1, 50)
+        for key in range(1, 51)
     },
 }
 
@@ -92,8 +92,7 @@ NUM_DECODER_LAYERS = 2
 DIM_FEEDFORWARD = 256
 DROPOUT_RATE = 0.3
 
-
-DEFAULT_TEST_RUNS = [[30, 31, 32, 33, 34], [30, 31, 32, 33, 34]]
+DEFAULT_TEST_RUNS = [[13, 18, 25, 29, 31, 32, 33, 50], []]
 
 RES_NET_TRAIN_TRANSFORM = transforms.Compose([
     transforms.RandomResizedCrop((224, 224)),

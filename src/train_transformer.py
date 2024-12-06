@@ -8,7 +8,7 @@ from dataset import SequentialDataset
 
 import util
 import constants
-
+from datetime import datetime
 
 def parse_cmd_line() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -71,7 +71,9 @@ def train():
     print("Training Robot State Transformer Network")
 
     run_nums = util.get_run_numbers(args)
-    log_dir = util.get_log_dir(args)
+    current_time = datetime.now().strftime("%Y%m%d-%H%M")
+    log_dir = util.get_log_dir(args) + current_time
+    
     hparams = {
         'batch_size': args.batch_size,
         'lr': args.lr,

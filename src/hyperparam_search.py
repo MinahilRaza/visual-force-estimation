@@ -126,7 +126,7 @@ def hyperparameter_search():
     num_decoder_layers_options = [2]
     dim_feedforward_options = [256]
     dropout_rates = [0.3]
-    seq_lengths = [5, 10, 20]
+    seq_lengths = [10]
 
     best_rmse = float('inf')
     best_params = None
