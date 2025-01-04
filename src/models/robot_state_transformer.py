@@ -1,3 +1,4 @@
+# TODO: try batch first to get rid of the permute
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,6 +25,33 @@ class TransformerConfig:
     dim_feedforward: int
     encoder_state: EncoderState
     max_seq_length: int = 512
+    use_positional_encoding: bool = True  # TODO remove true and pass as args
+    is_causal: bool = True  # TODO remove true and pass as args
+
+
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model: int, max_seq_length: int, dropout_rate: float = 0.1):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout_rate)
+
+        # Create positional encoding matrix
+        position = torch.arange(0, max_seq_length).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) *
+                             -(torch.log(torch.tensor(10000.0)) / d_model))
+        pe = torch.zeros(max_seq_length, d_model)
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        # [1, max_seq_len, d_model]
+        self.register_buffer('pe', pe.unsqueeze(0))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Add positional encoding to the input.
+        x: [batch_size, seq_length, d_model]
+        """
+
+        x = x + self.pe[:, :x.size(1)]
+        return self.dropout(x)
 
 
 class RobotStateTransformer(nn.Module):
@@ -51,15 +79,48 @@ class RobotStateTransformer(nn.Module):
                 dropout_rate=config.dropout_rate
             )
 
-        self.transformer = nn.Transformer(
+        # Encoder for ground truth output
+        self.output_encoder = LinearEncoder(
+            # Assuming 3 output features (x, y, z forces)
+            num_input_features=3,
+            hidden_layers=config.hidden_layers,
+            dropout_rate=config.dropout_rate,
+            use_batch_norm=config.use_batch_norm
+        ) if self.config.is_causal else None
+
+        # Positional encoding
+        self.positional_encoding = PositionalEncoding(
+            d_model=config.hidden_layers[-1],
+            max_seq_length=config.max_seq_length,
+            dropout_rate=config.dropout_rate
+        ) if config.use_positional_encoding else None
+
+        if self.positional_encoding is not None:
+            print("Using positional encoding")
+        if self.config.is_causal:
+            print("Using causal mask")
+
+        # Transformer Encoder
+        encoder_layer = nn.TransformerEncoderLayer(
             d_model=config.hidden_layers[-1],
             nhead=config.num_heads,
-            num_encoder_layers=config.num_encoder_layers,
-            num_decoder_layers=config.num_decoder_layers, # might not be needed
-            dim_feedforward=config.dim_feedforward, # 4 times attention dimension D (encoder output)
-            dropout=config.dropout_rate, # 0.1, 0.2
-            norm_first = False # True
+            dim_feedforward=config.dim_feedforward,
+            dropout=config.dropout_rate,
         )
+
+        self.transformer_encoder = nn.TransformerEncoder(
+            encoder_layer, num_layers=config.num_encoder_layers
+        )
+
+        # self.transformer = nn.Transformer(
+        #     d_model=config.hidden_layers[-1],
+        #     nhead=config.num_heads,
+        #     num_encoder_layers=config.num_encoder_layers,
+        #     num_decoder_layers=config.num_decoder_layers, # might not be needed
+        #     dim_feedforward=config.dim_feedforward, # 4 times attention dimension D (encoder output)
+        #     dropout=config.dropout_rate, # 0.1, 0.2
+        #     norm_first = False # True
+        # )
 
         self.output_layer = nn.Linear(config.hidden_layers[-1], 3)
         self._initialize_weights(seed)
@@ -79,30 +140,83 @@ class RobotStateTransformer(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, robot_state: torch.Tensor) -> torch.Tensor:
+    def generate_causal_mask(self, seq_length: int) -> torch.Tensor:
+        """
+        Generate a custom causal mask where at timestep t:
+        - All input features for timesteps 1 to t are available.
+        - Only predicted output features from timesteps 1 to t-1 are available.
+        This matrix will be added to our target vector, so the matrix will be made
+        up of zeros in the positions where the transformer can have access to the 
+        elements, and minus infinity where it can’t.
+        """
+        mask = torch.full((seq_length, seq_length), float('-inf'))
+        # Set values on and above the diagonal to 0
+        mask = torch.triu(mask, diagonal=0)
+        return mask
+
+    def forward(self, robot_state: torch.Tensor, ground_truth: torch.Tensor = None) -> torch.Tensor:
+        # TODO make this code compatible with non-causal case
         """
         robot_state: [batch_size, seq_length, num_robot_features]
+        ground_truth: [batch_size, seq_length, 3]  # Assuming 3 output features
         """
         batch_size, seq_length, _ = robot_state.size()
 
-        # Flatten to apply 1D DenseNet encoder
+        # Encode robot state
         if self.encoder_state == EncoderState.LINEAR:
             robot_state = robot_state.view(-1, self.num_robot_features)
-        encoded_features = self.robot_encoder(robot_state)
+        encoded_robot_features = self.robot_encoder(robot_state)
         if self.encoder_state == EncoderState.LINEAR:
-            encoded_features = encoded_features.view(
+            encoded_robot_features = encoded_robot_features.view(
                 batch_size, seq_length, -1)
 
+        # Add positional encoding to robot state
+        if self.config.use_positional_encoding:
+            encoded_robot_features = self.positional_encoding(
+                encoded_robot_features)
+
+        # Encode ground truth output
+        if self.config.is_causal:
+            ground_truth = ground_truth.view(-1, 3)
+            encoded_output_features = self.output_encoder(ground_truth)
+            encoded_output_features = encoded_output_features.view(
+                batch_size, seq_length, -1)
+
+            # Add positional encoding to force features
+            if self.config.use_positional_encoding:
+                encoded_output_features = self.positional_encoding(
+                    encoded_output_features)
+
+            # Interleave the features [robot_state_encoded_1 (r1), force_encoded_1 (f1),
+            #                       robot_state_encoded_2 (r2), force_encoded_2 (f2), ...]
+
+            combined_features = torch.cat(
+                [encoded_robot_features, encoded_output_features], dim=-1).view(batch_size, 2 * seq_length, -1)
+
+        else:
+            combined_features = encoded_robot_features
+
         # Transformer expects inputs in (seq_length, batch_size, features)
-        if self.encoder_state == EncoderState.LINEAR:
-            encoded_features = encoded_features.permute(1, 0, 2)
-        transformer_output = self.transformer(
-            encoded_features, encoded_features)
+        combined_features = combined_features.permute(1, 0, 2)
+
+        # Causal Mask
+        # t = 1 : [r1, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, ...]
+        # t = 2 : [r1,   f1,   r2, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, -Inf, ...]
+        # t = 3 : [r1,   f1,   r2,   f2,   r3, -Inf, -Inf, -Inf, -Inf, -Inf, ...]
+
+        # Apply causal masking if enabled
+        if self.config.is_causal:
+            mask = self.generate_causal_mask(
+                seq_length).to(combined_features.device)
+        else:
+            mask = None
+
+        transformer_output = self.transformer_encoder(
+            combined_features, mask=mask, is_causal=True)
 
         # Output layer
         output = self.output_layer(transformer_output)
-        if self.encoder_state == EncoderState.LINEAR:
-            output = output.permute(1, 0, 2)  # [batch_size, seq_length, 3]
+        output = output.permute(1, 0, 2)  # [batch_size, seq_length, 3]
 
         return output
 

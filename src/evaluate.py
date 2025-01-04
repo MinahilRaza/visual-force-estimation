@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from models.vision_robot_net import VisionRobotNet
 from models.robot_state_transformer import RobotStateTransformer
 from transforms import CropBottom
-from dataset import VisionRobotDataset, SequentialDataset
+from dataset import VisionRobotDataset, SequentialDataset, AutoregressiveDataset
 import constants
 import util
 
@@ -111,11 +111,14 @@ def plot_forces(forces_pred: np.ndarray,
 
     # Create a figure with three subplots for raw predictions
     fig, axs = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
-    fig.suptitle(f"Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")
+    title = "Force Predictions vs Ground Truth, Run"
+    fig.suptitle(f"{title} {run}, Avg RMSE: {avg_rmse:.4f}")
 
     for i, ax_label in enumerate(axes):
-        axs[i].plot(time_axis, forces_pred[:, i], label='Predicted', linestyle='-', marker='')
-        axs[i].plot(time_axis, forces_gt[:, i], label='Ground Truth', linestyle='-', marker='')
+        axs[i].plot(time_axis, forces_pred[:, i],
+                    label='Predicted', linestyle='-', marker='')
+        axs[i].plot(time_axis, forces_gt[:, i],
+                    label='Ground Truth', linestyle='-', marker='')
         axs[i].set_title(f"Force in {ax_label} Direction")
         axs[i].set_ylabel('Force [N]')
         axs[i].set_ylim(-1, 1)
@@ -123,18 +126,27 @@ def plot_forces(forces_pred: np.ndarray,
 
     axs[-1].set_xlabel('Time')
 
-    save_path = os.path.join(save_dir, f"pred_run_{run}_forces.{'pdf' if pdf else 'png'}")
+    save_path = os.path.join(
+        save_dir,
+        f"pred_run_{run}_forces.{'pdf' if pdf else 'png'}"
+    )
+
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust layout to fit the suptitle
     plt.savefig(save_path)
     plt.close()
 
     # Create a second figure with three subplots for smoothed predictions
     fig, axs = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
-    fig.suptitle(f"Smoothed Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")
+    fig.suptitle(
+        f"Smoothed Force Predictions vs Ground Truth, Run {run}, "
+        f"Avg RMSE: {avg_rmse:.4f}"
+    )
 
     for i, ax_label in enumerate(axes):
-        axs[i].plot(time_axis[:-1], forces_smooth[:, i], label='Smoothed Predictions', linestyle='-', marker='')
-        axs[i].plot(time_axis[:-1], forces_gt[:-1, i], label='Ground Truth', linestyle='-', marker='')
+        axs[i].plot(time_axis[:-1], forces_smooth[:, i],
+                    label='Smoothed Predictions', linestyle='-', marker='')
+        axs[i].plot(time_axis[:-1], forces_gt[:-1, i],
+                    label='Ground Truth', linestyle='-', marker='')
         axs[i].set_title(f"Force in {ax_label} Direction")
         axs[i].set_ylabel('Force [N]')
         axs[i].set_ylim(-1, 1)
@@ -142,10 +154,15 @@ def plot_forces(forces_pred: np.ndarray,
 
     axs[-1].set_xlabel('Time')
 
-    save_path = os.path.join(save_dir, f"pred_smooth_run_{run}_forces.{'pdf' if pdf else 'png'}")
+    save_path = os.path.join(
+        save_dir,
+        f"pred_smooth_run_{run}_forces.{'pdf' if pdf else 'png'}"
+    )
+
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(save_path)
     plt.close()
+
 
 @torch.no_grad()
 def eval_model(model: VisionRobotNet,
@@ -158,6 +175,9 @@ def eval_model(model: VisionRobotNet,
     batch_size = data_loader.batch_size
     forces_pred = torch.zeros((n_samples, 3), device=device)
     forces_gt = torch.zeros((n_samples, 3), device=device)
+    autoregressive_pred_forces = torch.zeros(
+        (batch_size, 100, 3), device=device)
+
     i = 0
     for batch in tqdm(data_loader):
         if model_type == 'vision_robot':
@@ -171,15 +191,40 @@ def eval_model(model: VisionRobotNet,
             forces_gt[i * batch_size: i * batch_size + len_batch] = target
 
         elif model_type == 'transformer':
+            # if batch_size is 1, then [1, seq_len, 78]
             robot_state = batch["features"].to(device)
             target = batch["target"].to(device)
+            assert robot_state.shape[1] == target.shape[1], \
+                f"Feature seq len: {robot_state.shape[1]}," +\
+                f"Target seq len: {target.shape[1]}"
+            seq_len = robot_state.shape[1]
+
+            # shift back
+            if i > 0:
+                for idx in range(autoregressive_pred_forces.shape[1]-2):
+                    autoregressive_pred_forces[:, idx,
+                                               :] = autoregressive_pred_forces[:, idx+1, :]
+
+                # force predicted at state t
+                autoregressive_pred_forces[:, -2, :] = out[:, -2, :]
+
+            #
             # Shape: [batch_size, seq_length, 3]
-            out: torch.Tensor = model(robot_state)
+            if i < 20:
+                print(i, robot_state.shape, target.shape,
+                      autoregressive_pred_forces[:, (-1*seq_len):, :].shape)
+            out: torch.Tensor = model(
+                robot_state, autoregressive_pred_forces[:, (-1*seq_len):, :])
             len_batch = target.size(0)
+
             # Take the last value in the sequence of predictions
-            forces_pred[i*batch_size: i*batch_size + len_batch] = out[:, -1, :]
-            forces_gt[i * batch_size: i * batch_size +
-                      len_batch] = target[:, -1, :]
+            # forces_pred[i*batch_size: i*batch_size + len_batch] = out[:, -1, :]
+            # forces_gt[i * batch_size: i * batch_size +
+            #           len_batch] = target[:, -1, :]
+
+            forces_gt[i, :] = target[:, -1, :]
+            forces_pred[i, :] = out[0, -2, :]
+
         i += 1
     forces_pred = forces_pred.cpu().detach().numpy()
     forces_pred = target_scaler.inverse_transform(forces_pred)
@@ -240,15 +285,23 @@ def eval() -> None:
                                                     sequential=True,
                                                     crop_runs=False,
                                                     use_acceleration=args.use_acceleration)
-        dataset = SequentialDataset(robot_features_list=features,
-                                    force_targets_list=targets,
-                                    normalize_targets=True,
-                                    seq_length=constants.SEQ_LENGTH,
-                                    feature_scaler_path=constants.FEATURE_SCALER_FN,
-                                    target_scaler_path=constants.TARGET_SCALER_FN)
+        # dataset = SequentialDataset(robot_features_list=features,
+        #                             force_targets_list=targets,
+        #                             normalize_targets=True,
+        #                             seq_length=constants.SEQ_LENGTH,
+        #                             feature_scaler_path=constants.FEATURE_SCALER_FN,
+        #                             target_scaler_path=constants.TARGET_SCALER_FN)
+
+        dataset = AutoregressiveDataset(robot_features_list=features,
+                                        force_targets_list=targets,
+                                        normalize_targets=True,
+                                        seq_length=constants.SEQ_LENGTH,
+                                        feature_scaler_path=constants.FEATURE_SCALER_FN,
+                                        target_scaler_path=constants.TARGET_SCALER_FN)
 
     print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+
     target_scaler = joblib.load(constants.TARGET_SCALER_FN)
     forces_pred, forces_gt, avg_rmse = eval_model(
         model, data_loader, target_scaler, device, model_type=args.model_type)

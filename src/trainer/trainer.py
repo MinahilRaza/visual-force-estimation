@@ -211,9 +211,16 @@ class TransformerTrainer(TrainerBase):
 
     def run_model(self, batch: dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         robot_state = batch["features"].to(self.device)
-        target = batch["target"].to(self.device)[:, -1, :]
+        # Has to wait to get sequence_length steps and that is why it limits the sequence length which can be used
+        # target = batch["target"].to(self.device)[:, -1, :]
 
-        out = self.model(robot_state)[:, -1, :]
+        target = batch["target"].to(self.device)
+
+        # out = self.model(robot_state, batch["target"].to(self.device))[
+        #     :, -1, :]
+
+        out = self.model(robot_state, batch["target"].to(self.device))[
+            :, 0::2, :]
 
         loss: torch.Tensor = self.criterion(out, target)
         acc: torch.Tensor = self.acc_module(out, target)
