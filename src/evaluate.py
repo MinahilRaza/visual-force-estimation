@@ -13,7 +13,8 @@ from torch.utils.data import DataLoader
 
 from models.vision_robot_net import VisionRobotNet
 from models.robot_state_transformer import RobotStateTransformer
-from dataset import VisionRobotDataset, SequentialDataset
+from transforms import CropBottom
+from dataset import VisionRobotDataset, SequentialDataset, AutoregressiveDataset
 import constants
 import util
 import signal_processing_utils as sp_utils
@@ -68,6 +69,9 @@ def eval_model(model: VisionRobotNet,
     batch_size = data_loader.batch_size
     forces_pred = torch.zeros((n_samples, 3), device=device)
     forces_gt = torch.zeros((n_samples, 3), device=device)
+    autoregressive_pred_forces = torch.zeros(
+        (batch_size, 100, 3), device=device)
+
     i = 0
     for batch in tqdm(data_loader):
         if model_type == 'vision_robot':
@@ -81,15 +85,40 @@ def eval_model(model: VisionRobotNet,
             forces_gt[i * batch_size: i * batch_size + len_batch] = target
 
         elif model_type == 'transformer':
+            # if batch_size is 1, then [1, seq_len, 78]
             robot_state = batch["features"].to(device)
             target = batch["target"].to(device)
+            assert robot_state.shape[1] == target.shape[1], \
+                f"Feature seq len: {robot_state.shape[1]}," +\
+                f"Target seq len: {target.shape[1]}"
+            seq_len = robot_state.shape[1]
+
+            # shift back
+            if i > 0:
+                for idx in range(autoregressive_pred_forces.shape[1]-2):
+                    autoregressive_pred_forces[:, idx,
+                                               :] = autoregressive_pred_forces[:, idx+1, :]
+
+                # force predicted at state t
+                autoregressive_pred_forces[:, -2, :] = out[:, -2, :]
+
+            #
             # Shape: [batch_size, seq_length, 3]
-            out: torch.Tensor = model(robot_state)
+            if i < 20:
+                print(i, robot_state.shape, target.shape,
+                      autoregressive_pred_forces[:, (-1*seq_len):, :].shape)
+            out: torch.Tensor = model(
+                robot_state, autoregressive_pred_forces[:, (-1*seq_len):, :])
             len_batch = target.size(0)
+
             # Take the last value in the sequence of predictions
-            forces_pred[i*batch_size: i*batch_size + len_batch] = out[:, -1, :]
-            forces_gt[i * batch_size: i * batch_size +
-                      len_batch] = target[:, -1, :]
+            # forces_pred[i*batch_size: i*batch_size + len_batch] = out[:, -1, :]
+            # forces_gt[i * batch_size: i * batch_size +
+            #           len_batch] = target[:, -1, :]
+
+            forces_gt[i, :] = target[:, -1, :]
+            forces_pred[i, :] = out[0, -2, :]
+
         i += 1
     forces_pred = forces_pred.cpu().detach().numpy()
     forces_pred = target_scaler.inverse_transform(forces_pred)
@@ -158,17 +187,25 @@ def eval() -> None:
                                                     sequential=True,
                                                     crop_runs=False,
                                                     use_acceleration=args.use_acceleration)
-        dataset = SequentialDataset(robot_features_list=features,
-                                    force_targets_list=targets,
-                                    normalize_targets=True,
-                                    seq_length= args.seq_length,
-                                    feature_scaler_path=feature_scaler_path,
-                                    target_scaler_path=target_scaler_path)
+        # dataset = SequentialDataset(robot_features_list=features,
+        #                             force_targets_list=targets,
+        #                             normalize_targets=True,
+        #                             seq_length=constants.SEQ_LENGTH,
+        #                             feature_scaler_path=constants.FEATURE_SCALER_FN,
+        #                             target_scaler_path=constants.TARGET_SCALER_FN)
+
+        dataset = AutoregressiveDataset(robot_features_list=features,
+                                        force_targets_list=targets,
+                                        normalize_targets=True,
+                                        seq_length=constants.SEQ_LENGTH,
+                                        feature_scaler_path=constants.FEATURE_SCALER_FN,
+                                        target_scaler_path=constants.TARGET_SCALER_FN)
 
     print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    target_scaler = joblib.load(target_scaler_path)
-    forces_pred, forces_gt, avg_rmse, avg_nrmse = eval_model(
+    data_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+    target_scaler = joblib.load(constants.TARGET_SCALER_FN)
+    forces_pred, forces_gt, avg_rmse = eval_model(
         model, data_loader, target_scaler, device, model_type=args.model_type)
     forces_pred_smooth = sp_utils.moving_average(
         forces_pred, window_size=constants.MOVING_AVG_WINDOW_SIZE)
