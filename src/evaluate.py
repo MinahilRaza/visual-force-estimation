@@ -109,32 +109,40 @@ def plot_forces(forces_pred: np.ndarray,
     time_axis = np.arange(forces_pred.shape[0])
     axes = ["X", "Y", "Z"]
 
+    # Calculate axis-wise RMSE for raw predictions
+    axis_rmse_raw = np.sqrt(((forces_pred - forces_gt) ** 2).mean(axis=0))
+
     # Create a figure with three subplots for raw predictions
     fig, axs = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
-    fig.suptitle(f"Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")
+    fig.suptitle(f"Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")  # nopep8
 
     for i, ax_label in enumerate(axes):
-        axs[i].plot(time_axis, forces_pred[:, i], label='Predicted', linestyle='-', marker='')
-        axs[i].plot(time_axis, forces_gt[:, i], label='Ground Truth', linestyle='-', marker='')
-        axs[i].set_title(f"Force in {ax_label} Direction")
+        axs[i].plot(time_axis, forces_pred[:, i],
+                    label='Predicted', linestyle='-', marker='')
+        axs[i].plot(time_axis, forces_gt[:, i],
+                    label='Ground Truth', linestyle='-', marker='')
+        axs[i].set_title(
+            f"Force in {ax_label} Direction (RMSE: {axis_rmse_raw[i]:.4f})")
         axs[i].set_ylabel('Force [N]')
         axs[i].set_ylim(-1, 1)
         axs[i].legend()
 
     axs[-1].set_xlabel('Time')
 
-    save_path = os.path.join(save_dir, f"pred_run_{run}_forces.{'pdf' if pdf else 'png'}")
+    save_path = os.path.join(save_dir, f"pred_run_{run}_forces.{'pdf' if pdf else 'png'}")  # nopep8
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust layout to fit the suptitle
     plt.savefig(save_path)
     plt.close()
 
     # Create a second figure with three subplots for smoothed predictions
     fig, axs = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
-    fig.suptitle(f"Smoothed Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")
+    fig.suptitle(f"Smoothed Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")  # nopep8
 
     for i, ax_label in enumerate(axes):
-        axs[i].plot(time_axis[:-1], forces_smooth[:, i], label='Smoothed Predictions', linestyle='-', marker='')
-        axs[i].plot(time_axis[:-1], forces_gt[:-1, i], label='Ground Truth', linestyle='-', marker='')
+        axs[i].plot(time_axis[:-1], forces_smooth[:, i],
+                    label='Smoothed Predictions', linestyle='-', marker='')
+        axs[i].plot(time_axis[:-1], forces_gt[:-1, i],
+                    label='Ground Truth', linestyle='-', marker='')
         axs[i].set_title(f"Force in {ax_label} Direction")
         axs[i].set_ylabel('Force [N]')
         axs[i].set_ylim(-1, 1)
@@ -142,10 +150,11 @@ def plot_forces(forces_pred: np.ndarray,
 
     axs[-1].set_xlabel('Time')
 
-    save_path = os.path.join(save_dir, f"pred_smooth_run_{run}_forces.{'pdf' if pdf else 'png'}")
+    save_path = os.path.join(save_dir, f"pred_smooth_run_{run}_forces.{'pdf' if pdf else 'png'}")  # nopep8
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     plt.savefig(save_path)
     plt.close()
+
 
 @torch.no_grad()
 def eval_model(model: VisionRobotNet,

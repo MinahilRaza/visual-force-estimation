@@ -284,8 +284,7 @@ def get_log_dir(args: argparse.Namespace) -> str:
     overfit = "overfit/" if args.overfit else ""
     state = args.state
     seq_length = args.seq_length
-    log_dir = f"runs/{model_name}/{overfit}{state}/force_est_{num_ep}ep_" + \
-        f"lr_{lr}{scheduled}_seq_length_{seq_length}_bs_{batch_size}_accel_{accel}_normalized_{normalized}"
+    log_dir = f"runs/{overfit}{state}/{args.out_dir}_force_est_{num_ep}ep_lr_{lr}{scheduled}_seq_len_{seq_length}_bs_{batch_size}_accel_{accel}_normalized_{normalized}"  # nopep8
     return log_dir
 
 

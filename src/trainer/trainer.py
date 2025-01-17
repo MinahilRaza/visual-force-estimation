@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from loss import RMSELoss
+from loss import RMSELoss, WeightedAxisMSELoss
 
 
 class LRSchedulerConfig(object):
@@ -40,6 +40,8 @@ class TrainerBase(ABC):
 
         self.device = device
         self.phases = ["train", "test"]
+        self.phase = None
+        self.current_epoch = None
 
         assert isinstance(criterion, str), f"{criterion=}"
         self.criterion_name = criterion
@@ -48,6 +50,9 @@ class TrainerBase(ABC):
             self.criterion.to(device)
         elif self.criterion_name == "rmse":
             self.criterion = RMSELoss()
+            self.criterion.to(device)
+        elif self.criterion_name == "axis-mse":
+            self.criterion = WeightedAxisMSELoss()
             self.criterion.to(device)
         elif self.criterion_name == "custom":
             self.criterion = None
@@ -95,7 +100,9 @@ class TrainerBase(ABC):
             print(f"LR: {self.optimizer.param_groups[0]['lr']}")
             loss_phase = {}
             acc_phase = {}
+            self.current_epoch = i
             for phase in self.phases:
+                self.phase = phase
                 if phase == "train":
                     self.model.train()
                 else:
@@ -203,6 +210,7 @@ class ForceEstimationTrainer(TrainerBase):
         out = self.model(img_left, img_right, features)
         loss: torch.Tensor = self.criterion(out, target)
         acc: torch.Tensor = self.acc_module(out, target)
+
         return out, loss, acc
 
 
@@ -217,4 +225,15 @@ class TransformerTrainer(TrainerBase):
 
         loss: torch.Tensor = self.criterion(out, target)
         acc: torch.Tensor = self.acc_module(out, target)
+
+        # RMSE of each axes
+        squared_diff = (out - target) ** 2
+        mse_per_axis = squared_diff.mean(dim=0)
+        rmse_per_axis = torch.sqrt(mse_per_axis)
+
+        axes = ["X", "Y", "Z"]
+        for i, axis in enumerate(axes):
+            self.writer.add_scalar(
+                f"RMSE/{self.phase}/{axis}_Axis", rmse_per_axis[i].item(), self.current_epoch)
+
         return out, loss, acc

@@ -10,6 +10,7 @@ import util
 import constants
 from datetime import datetime
 
+
 def parse_cmd_line() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", required=True, type=int)
@@ -71,9 +72,9 @@ def train():
     print("Training Robot State Transformer Network")
 
     run_nums = util.get_run_numbers(args)
-    current_time = datetime.now().strftime("%Y%m%d-%H%M")
-    log_dir = util.get_log_dir(args) + current_time
-    
+    current_time = datetime.now().strftime("%Y%m%d")
+    log_dir = f"{util.get_log_dir(args)}_{current_time}"  # nopep8
+
     hparams = {
         'batch_size': args.batch_size,
         'lr': args.lr,
@@ -126,7 +127,7 @@ def train():
     trainer = TransformerTrainer(model,
                                  data_loaders,
                                  device,
-                                 criterion="mse",
+                                 criterion="axis-mse",
                                  lr=args.lr,
                                  regularized=True,
                                  weights_dir=weights_dir,
