@@ -92,7 +92,7 @@ NUM_DECODER_LAYERS = 2
 DIM_FEEDFORWARD = 256
 DROPOUT_RATE = 0.3
 
-DEFAULT_TEST_RUNS = [[13, 18, 25, 29, 31, 32, 33, 50], []]
+DEFAULT_TEST_RUNS = [[1, 3, 4, 15, 18, 20, 21, 30], []]
 
 RES_NET_TRAIN_TRANSFORM = transforms.Compose([
     transforms.RandomResizedCrop((224, 224)),

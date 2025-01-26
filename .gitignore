@@ -26,6 +26,7 @@ ENV/
 
 # Event logs
 events.out.tfevents.*
+wandb/
 
 # Testing outputs
 .tox/
