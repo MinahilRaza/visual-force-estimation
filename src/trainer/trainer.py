@@ -1,5 +1,6 @@
 import os
 import socket
+import wandb
 
 from typing import List, Optional, Dict, Tuple
 from abc import ABC, abstractmethod
@@ -131,11 +132,22 @@ class TrainerBase(ABC):
                 self.writer.add_scalar(
                     f"RMSE/{phase}", avg_acc_epoch.item(), i)
 
+                wandb.log({
+                    f"{self.criterion_name}/{phase}": avg_loss_epoch.item(),
+                    f"RMSE/{phase}": avg_acc_epoch.item()
+                }, step=i)
+
                 if phase == "test" and avg_acc_epoch.item() < best_acc:
                     best_acc = avg_acc_epoch.item()
                     torch.save(self.model.state_dict(), self.save_path_best)
                     print(f"Saved new best model with \
                         RMSE:{round(avg_acc_epoch.item(), 4)}")
+
+                    # Save model weights
+                    model_artifact = wandb.Artifact(
+                        "model_weights", type="model")
+                    model_artifact.add_file(self.save_path_best)
+                    wandb.log_artifact(model_artifact)
 
             if self.scheduler:
                 self.scheduler.step()

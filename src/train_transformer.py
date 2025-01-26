@@ -9,6 +9,9 @@ from dataset import SequentialDataset
 import util
 import constants
 from datetime import datetime
+import wandb
+wandb.login()
+
 
 def parse_cmd_line() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -67,13 +70,13 @@ def train():
     args = parse_cmd_line()
     args.model = "transformer"
     args.use_pretrained = False
+    loss_criterion = "mse"
 
     print("Training Robot State Transformer Network")
 
     run_nums = util.get_run_numbers(args)
     current_time = datetime.now().strftime("%Y%m%d-%H%M")
     log_dir = util.get_log_dir(args) + current_time
-    
     hparams = {
         'batch_size': args.batch_size,
         'lr': args.lr,
@@ -82,6 +85,22 @@ def train():
     }
     writer = SummaryWriter(log_dir=log_dir)
     writer.add_hparams(hparams, {})
+
+    dataset_name = "force-runs" if not run_nums["train"][1] else "all-runs"
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="force-transformer",
+        config={
+                'architecture': 'state-transformer',
+                'dataset': dataset_name,
+                'validation-method': "simple",  # TODO: add k-fold validation
+                'batch_size': args.batch_size,
+                'lr': args.lr,
+                'num_epochs': args.num_epochs,
+                'seq_length': args.seq_length,
+                'loss_criterion': loss_criterion
+        }
+    )
 
     data_dir = "data"
     sets = ["train", "test"]
@@ -126,7 +145,7 @@ def train():
     trainer = TransformerTrainer(model,
                                  data_loaders,
                                  device,
-                                 criterion="mse",
+                                 criterion=loss_criterion,
                                  lr=args.lr,
                                  regularized=True,
                                  weights_dir=weights_dir,

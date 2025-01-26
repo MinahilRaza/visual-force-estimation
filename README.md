@@ -107,10 +107,14 @@ These plots showcase the performance of our transformer-based model, which demon
       <em>Predicted vs Ground Truth force values for the X- and Y-axis during a complete surgical operation sequence</em><br>
     </p>
 
+## Logging result with Weights & Biases (W&B)
+
+Add this line to your shell configuration file (e.g., .`bashrc` or `.zshrc`):
+``` bash
+echo "export WANDB_API_KEY=your_api_key_here" >> ~/.bashrc
+```
+W&B will automatically detect and use this environment variable when you run your scripts.
+
 ## Acknowledgments
 
 This project is part of research conducted at the CHARM Lab at Stanford University.
-
-## Contact
-
-For questions or further information, please contact me at rtim@stanford.edu.
