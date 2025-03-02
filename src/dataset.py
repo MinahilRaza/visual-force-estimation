@@ -75,32 +75,50 @@ class SequentialDataset(Dataset):
             len(features) - seq_length + 1 for features in self.robot_features]
         self.cumulative_samples = np.cumsum(self.num_samples_per_run)
 
-        if feature_scaler_path:
-            assert os.path.isfile(
-                feature_scaler_path), f"{feature_scaler_path=}"
-            self.feature_scaler = joblib.load(feature_scaler_path)
-            for i in range(len(self.robot_features)):
-                self.robot_features[i] = torch.from_numpy(
-                    self.feature_scaler.transform(
-                        self.robot_features[i].numpy())
-                ).float()
+        if feature_scaler_path is not None: 
+            if os.path.isfile(feature_scaler_path):
+                self.feature_scaler = joblib.load(feature_scaler_path)
+                print(f"Loading feature scaler from {feature_scaler_path}")
+                for i in range(len(self.robot_features)):
+                    self.robot_features[i] = torch.from_numpy(
+                        self.feature_scaler.transform(
+                            self.robot_features[i].numpy())
+                    ).float()
+            else:
+                self.feature_scaler = StandardScaler()
+                self._fit_scaler()
+                self._transform_features()
+                os.makedirs(os.path.dirname(feature_scaler_path), exist_ok=True)
+                joblib.dump(self.feature_scaler, feature_scaler_path)
+                print(f"Saving feature scaler to {feature_scaler_path}")
         else:
             self.feature_scaler = StandardScaler()
             self._fit_scaler()
             self._transform_features()
             joblib.dump(self.feature_scaler, constants.FEATURE_SCALER_FN)
+            print(f"Saving feature scaler to {constants.FEATURE_SCALER_FN}")
+            
 
         if normalize_targets:
-            if target_scaler_path:
-                assert os.path.isfile(
-                    target_scaler_path), f"{target_scaler_path=}"
-                self.target_scaler = joblib.load(target_scaler_path)
-                self._transform_targets()
+            if target_scaler_path is not None:
+                if os.path.isfile(target_scaler_path):
+                    print(f"Loading target scaler from {target_scaler_path}")
+                    self.target_scaler = joblib.load(target_scaler_path)
+                    self._transform_targets()
+                else:
+                    self.target_scaler = MinMaxScaler(feature_range=(-1, 1))
+                    self._fit_target_scaler()
+                    self._transform_targets()
+                    os.makedirs(os.path.dirname(target_scaler_path), exist_ok=True)
+                    joblib.dump(self.target_scaler, target_scaler_path)
+                    print(f"Saving target scaler to {target_scaler_path}")
             else:
                 self.target_scaler = MinMaxScaler(feature_range=(-1, 1))
                 self._fit_target_scaler()
                 self._transform_targets()
                 joblib.dump(self.target_scaler, constants.TARGET_SCALER_FN)
+                print(f"Saving target scaler to {constants.TARGET_SCALER_FN}")
+
         else:
             self.target_scaler = None
 

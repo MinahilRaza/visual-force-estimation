@@ -10,8 +10,10 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import matplotlib.pyplot as plt
 
 import torch
+from torch.utils.data import DataLoader
 from torchvision import transforms
-from dataset import VisionRobotDataset
+from sklearn.model_selection import KFold
+from dataset import VisionRobotDataset, SequentialDataset
 from models.vision_robot_net import VRNConfig, STATE_MAPPING
 from models.robot_state_transformer import TransformerConfig, EncoderState
 import constants
@@ -212,6 +214,74 @@ def apply_scaling_to_datasets(train_dataset: VisionRobotDataset,
         joblib.dump(target_scaler, constants.TARGET_SCALER_FN)
 
 
+def prepare_kfold_datasets(args, run_nums, data_dir, sets):
+    """
+    Prepare datasets for k-fold cross-validation.
+    Returns a list of fold-specific data splits.
+    """
+    kf1 = KFold(n_splits=args.k_folds, shuffle=True, random_state=42)
+    kf2 = KFold(n_splits=args.k_folds, shuffle=True,
+                random_state=42) if run_nums["train"][1] else None
+
+    fold_splits = []
+    for fold_idx, (train_indices1, val_indices1) in enumerate(kf1.split(run_nums["train"][0]), 1):
+        force_policy_runs_train = [run_nums["train"][0][i]
+                                   for i in train_indices1]
+        force_policy_runs_val = [run_nums["train"][0][i] for i in val_indices1]
+
+        if run_nums["train"][1]:
+            train_indices2, val_indices2 = next(
+                kf2.split(run_nums["train"][1]))
+            no_force_policy_runs_train = [
+                run_nums["train"][1][i] for i in train_indices2]
+            no_force_policy_runs_val = [
+                run_nums["train"][1][i] for i in val_indices2]
+        else:
+            no_force_policy_runs_train = []
+            no_force_policy_runs_val = []
+
+        fold_splits.append({
+            "train": [force_policy_runs_train, no_force_policy_runs_train],
+            "test": [force_policy_runs_val, no_force_policy_runs_val]
+        })
+    return fold_splits
+
+
+def prepare_standard_datasets(args, run_nums, data_dir, sets, feature_scaler_path: None, target_scaler_path: None):
+    """
+    Prepare datasets for a standard train-test split.
+    Returns a dictionary of DataLoaders.
+    """
+    data_loaders = {}
+    for s in sets:
+        features, targets, _, _ = load_dataset(
+                                    path=data_dir,
+                                    force_policy_runs=run_nums[s][0],
+                                    no_force_policy_runs=run_nums[s][1],
+                                    sequential=True,
+                                    use_acceleration=args.use_acceleration,
+                                    crop_runs=False
+                                )
+        assert isinstance(features, list)
+        assert isinstance(targets, list)
+
+        dataset_kwargs = {"feature_scaler_path": feature_scaler_path if feature_scaler_path else constants.FEATURE_SCALER_FN,
+                          "target_scaler_path": target_scaler_path if target_scaler_path else constants.TARGET_SCALER_FN}
+
+        dataset = SequentialDataset(
+                    robot_features_list=features,
+                    force_targets_list=targets,
+                    normalize_targets=args.normalize_targets,
+                    seq_length=args.seq_length,
+                    **dataset_kwargs)
+        print(f"[INFO] Loaded Sequential Dataset {s} with {len(dataset)} samples!")
+
+        data_loaders[s] = DataLoader(
+            dataset, batch_size=args.batch_size, shuffle=(s == "train"), drop_last=True
+        )
+    return data_loaders
+
+
 def create_weights_path(model: str, num_epochs: int, base_dir: str = "weights") -> str:
     """
     Creates a directory path for saving weights with a unique run count and specified parameters.
@@ -229,21 +299,18 @@ def create_weights_path(model: str, num_epochs: int, base_dir: str = "weights") 
         model_name = model
 
     base_path = Path(base_dir)
-    if not base_path.exists():
-        base_path.mkdir(parents=True, exist_ok=True)
-        highest_count = 0
-    else:
-        counts = []
-        for dir_name in os.listdir(base_dir):
-            if dir_name.startswith("run_"):
-                parts = dir_name.split("_")
-                if len(parts) >= 2 and parts[1].isdigit():
-                    counts.append(int(parts[1]))
-        highest_count = max(counts) + 1 if counts else 1
 
-    run_name = f"run_{highest_count}_{model_name}_epochs_{num_epochs}"
+    run_name = f"{model_name}_epochs_{num_epochs}"
     new_dir_path = base_path / run_name
     return str(new_dir_path)
+
+
+def create_kfolds_weights_path(base_dir: str = "weights", current_fold: int = 0, k_folds: int = 5):
+    base_path = Path(base_dir)
+    if not base_path.exists():
+        base_path.mkdir(parents=True, exist_ok=True)
+    fold_weights_path = base_path / f"fold_{current_fold}_of_{k_folds}"
+    return str(fold_weights_path)
 
 
 def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool):

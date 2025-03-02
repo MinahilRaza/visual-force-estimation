@@ -1,6 +1,7 @@
 import torch
 import argparse
-from torch.utils.data import DataLoader
+from sklearn.model_selection import KFold
+from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from models.robot_state_transformer import RobotStateTransformer
 from trainer.trainer import TransformerTrainer, LRSchedulerConfig
@@ -34,6 +35,10 @@ def parse_cmd_line() -> argparse.Namespace:
                         required=True,
                         help='Set the model state: linear for using a linear feature extractor, conv for a Conv1 Layer'
                         )
+    parser.add_argument("--use_kfold", action='store_true', default=False,
+                        help="Enable k-fold cross-validation")
+    parser.add_argument("--k_folds", type=int, default=5,
+                        help="Number of folds for k-fold cross-validation")
 
     return parser.parse_args()
 
@@ -87,72 +92,100 @@ def train():
     writer.add_hparams(hparams, {})
 
     dataset_name = "force-runs" if not run_nums["train"][1] else "all-runs"
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="force-transformer",
-        config={
+
+    data_dir = "data"
+    sets = ["train", "test"]
+
+    if args.use_kfold:
+        fold_splits = util.prepare_kfold_datasets(
+            args, run_nums, data_dir, sets)
+
+        for fold in range(args.k_folds):
+            wandb.init(
+                project="force-transformer",
+                group=f"{args.k_folds}_fold_seq_{args.seq_length}",
+                name=f"fold_{fold}_seq_{args.seq_length}",
+                config={
+                    'architecture': 'state-transformer',
+                    'dataset': "force-runs" if not run_nums["train"][1] else "all-runs",
+                    'validation-method': f'{args.k_folds}-fold',
+                    'batch_size': args.batch_size,
+                    'lr': args.lr,
+                    'num_epochs': args.num_epochs,
+                    'seq_length': args.seq_length,
+                    'loss_criterion': loss_criterion
+                },
+                reinit=True
+            )
+
+            wandb.config["val_indices"] = fold_splits[fold]["test"][0]
+            k_fold_weights_dir = util.create_kfolds_weights_path(
+                util.create_weights_path(
+                    args.out_dir, args.num_epochs), fold, args.k_folds
+            )
+
+            transformations_path = k_fold_weights_dir.replace("weights/", "transformations/")
+            feature_scaler_path = transformations_path + "/feature_scaler.joblib"
+            target_scaler_path = transformations_path + "/target_scaler.joblib"
+            kfold_dataloaders = util.prepare_standard_datasets(
+                args, fold_splits[fold], data_dir, sets, feature_scaler_path, target_scaler_path)
+
+            model = RobotStateTransformer(util.get_transformer_config(args))
+            model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+            trainer = TransformerTrainer(
+                model=model,
+                data_loaders=kfold_dataloaders,
+                device=torch.device(
+                    "cuda" if torch.cuda.is_available() else "cpu"),
+                criterion=loss_criterion,
+                lr=args.lr,
+                regularized=True,
+                weights_dir=k_fold_weights_dir,
+                writer=writer,
+                lr_scheduler_config=LRSchedulerConfig() if args.lr_scheduler else None,
+                use_acceleration=args.use_acceleration
+            )
+            trainer.train(num_epochs=args.num_epochs)
+    else:
+        wandb.init(
+            project="force-transformer",
+            config={
                 'architecture': 'state-transformer',
-                'dataset': dataset_name,
-                'validation-method': "simple",  # TODO: add k-fold validation
+                'dataset': "force-runs" if not run_nums["train"][1] else "all-runs",
                 'batch_size': args.batch_size,
                 'lr': args.lr,
                 'num_epochs': args.num_epochs,
                 'seq_length': args.seq_length,
-                'loss_criterion': loss_criterion
-        }
-    )
+                'loss_criterion': loss_criterion,
+                'val_indices': constants.DEFAULT_TEST_RUNS[0]
+            }
+        )
+        weights_path = util.create_weights_path("robot_state_transformer", args.num_epochs) # TODO
+        transformations_path = weights_path.replace("weights/", "transformations/")
+        feature_scaler_path = transformations_path + "/feature_scaler.joblib"
+        target_scaler_path = transformations_path + "/target_scaler.joblib"
+        
+        data_loaders = util.prepare_standard_datasets(
+            args, run_nums, data_dir, sets, feature_scaler_path, target_scaler_path)
 
-    data_dir = "data"
-    sets = ["train", "test"]
-    data_loaders = {}
+        model = RobotStateTransformer(util.get_transformer_config(args))
+        model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
-    for s in sets:
-        features, targets, _, _ = util.load_dataset(path=data_dir,
-                                                    force_policy_runs=run_nums[s][0],
-                                                    no_force_policy_runs=run_nums[s][1],
-                                                    sequential=True,
-                                                    use_acceleration=args.use_acceleration,
-                                                    crop_runs=False)
-        assert isinstance(features, list)
-        assert isinstance(targets, list)
-        dataset_kwargs = {"feature_scaler_path": constants.FEATURE_SCALER_FN,
-                          "target_scaler_path": constants.TARGET_SCALER_FN} if s == "test" else {}
-        dataset = SequentialDataset(robot_features_list=features,
-                                    force_targets_list=targets,
-                                    normalize_targets=args.normalize_targets,
-                                    seq_length=args.seq_length,
-                                    **dataset_kwargs)
-        print(
-            f"[INFO] Loaded Sequential Dataset {s} with {len(dataset)} samples!")
-        data_loaders[s] = DataLoader(
-            dataset, batch_size=args.batch_size, shuffle=(s == "train"), drop_last=True)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    config = util.get_transformer_config(args)
-    model = RobotStateTransformer(config)
-    model.to(device)
-
-    print(f"[INFO] Using Device: {device}")
-    print(f"[INFO] Training Model with Seq Length: {args.seq_length}")
-    print(f"[INFO] Batch Size: {args.batch_size}")
-    print(f"[INFO] Learning Rate: {args.lr}")
-    print(f"[INFO] State: {args.state}")
-
-    weights_dir = util.create_weights_path(
-        "robot_state_transformer", args.num_epochs) if not args.out_dir else args.out_dir
-    lr_scheduler_config = LRSchedulerConfig() if args.lr_scheduler else None
-    trainer = TransformerTrainer(model,
-                                 data_loaders,
-                                 device,
-                                 criterion=loss_criterion,
-                                 lr=args.lr,
-                                 regularized=True,
-                                 weights_dir=weights_dir,
-                                 writer=writer,
-                                 lr_scheduler_config=lr_scheduler_config,
-                                 use_acceleration=args.use_acceleration)
-    trainer.train(num_epochs=args.num_epochs)
+        trainer = TransformerTrainer(
+            model=model,
+            data_loaders=data_loaders,
+            device=torch.device(
+                "cuda" if torch.cuda.is_available() else "cpu"),
+            criterion=loss_criterion,
+            lr=args.lr,
+            regularized=True,
+            weights_dir= weights_path,
+            writer=writer,
+            lr_scheduler_config=LRSchedulerConfig() if args.lr_scheduler else None,
+            use_acceleration=args.use_acceleration
+        )
+        trainer.train(num_epochs=args.num_epochs)
 
 
 if __name__ == "__main__":

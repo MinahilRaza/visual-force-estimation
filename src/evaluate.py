@@ -232,6 +232,10 @@ def eval() -> None:
                                      img_transforms=constants.RES_NET_TEST_TRANSFORM,
                                      feature_scaler_path=constants.FEATURE_SCALER_FN)
     elif args.model_type == 'transformer':
+        weights_dir = args.weights
+        transformations_path = weights_dir.replace("weights/", "transformations/")
+        feature_scaler_path = transformations_path + "/feature_scaler.joblib"
+        target_scaler_path = transformations_path + "/target_scaler.joblib"
 
         features, targets, _, _ = util.load_dataset(path,
                                                     force_policy_runs=[
@@ -244,12 +248,12 @@ def eval() -> None:
                                     force_targets_list=targets,
                                     normalize_targets=True,
                                     seq_length=constants.SEQ_LENGTH,
-                                    feature_scaler_path=constants.FEATURE_SCALER_FN,
-                                    target_scaler_path=constants.TARGET_SCALER_FN)
+                                    feature_scaler_path=feature_scaler_path,
+                                    target_scaler_path=target_scaler_path)
 
     print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    target_scaler = joblib.load(constants.TARGET_SCALER_FN)
+    target_scaler = joblib.load(target_scaler_path)
     forces_pred, forces_gt, avg_rmse = eval_model(
         model, data_loader, target_scaler, device, model_type=args.model_type)
     forces_pred_smooth = moving_average(
