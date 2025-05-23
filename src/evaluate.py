@@ -7,7 +7,6 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error
 
 import torch
 from torchvision import transforms
@@ -19,6 +18,7 @@ from transforms import CropBottom
 from dataset import VisionRobotDataset, SequentialDataset
 import constants
 import util
+import signal_processing_utils as sp_utils
 
 
 def parse_cmd_line() -> argparse.Namespace:
@@ -26,6 +26,8 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("-w", "--weights", required=True)
     parser.add_argument("-r", "--run", required=True, type=int)
     parser.add_argument("-m", "--model", required=True, type=str)
+    parser.add_argument("--plot_type", choices=['plotly', 'matplotlib', 'none'], default='none',
+                        help='Type of plot to generate: plotly, matplotlib or none')
     parser.add_argument("--pdf", action='store_true', default=False,
                         help='stores the plots as pdf instead of png')
     parser.add_argument('--use_acceleration',
@@ -36,7 +38,13 @@ def parse_cmd_line() -> argparse.Namespace:
                         help='Set the model state: both for VISION_AND_ROBOT, robot for ROBOT_ONLY, vision for VISION_ONLY')
     parser.add_argument("--model_type", required=True,
                         choices=['vision_robot', 'transformer'])
-
+    parser.add_argument("--seq_length", default=10, type=int, help="Length of the input sequences")
+    parser.add_argument("--draw_crop_intervals", action='store_true', default=False,
+                        help="Draw the crop intervals on the plots")
+    parser.add_argument("--loss_criterion", type=str, default="mse",
+                        help="Loss function to use: mse, rmse, l1, weighted_mse, mixed, custom")
+    parser.add_argument("--analyze_results", action='store_true', default=True,    
+                        help="Run analysis on the results, e.g. run-wise or peak-wise analysis")
     return parser.parse_args()
 
 
@@ -54,98 +62,6 @@ def save_predictions(dir: str, forces_pred: np.ndarray, forces_smooth: np.ndarra
             for force in force_array:
                 line = "{},{},{}\n".format(force[0], force[1], force[2])
                 file.write(line)
-
-
-def moving_average(data: np.ndarray, window_size: int) -> np.ndarray:
-    """
-    Computes the moving average for each column of data separately.
-
-    Parameters:
-    data (np.ndarray): A 2D array where each column represents a series of data points.
-    window_size (int): The number of data points in each moving average window.
-
-    Returns:
-    np.ndarray: A 2D array with the same shape as data, containing the moving averages.
-    """
-    if window_size > data.shape[0]:
-        raise ValueError(
-            "window_size is larger than the number of rows in data.")
-
-    zero_pad = np.zeros((window_size-1, data.shape[1]))
-    data_padded = np.insert(data, 0, zero_pad, axis=0)
-    cumsum_vec = np.cumsum(data_padded, axis=0)
-    moving_avg = (cumsum_vec[window_size:] -
-                  cumsum_vec[:-window_size]) / window_size
-
-    assert moving_avg.shape[1] == data.shape[
-        1], f"The output shape {moving_avg.shape} does not match the input shape {data.shape}"
-    return moving_avg
-
-
-def plot_forces(forces_pred: np.ndarray,
-                forces_smooth: np.ndarray,
-                forces_gt: np.ndarray,
-                avg_rmse: float,
-                run: int,
-                pdf: bool,
-                save_dir: str = 'plots/transformer'):
-    """
-    Plots forces for x, y, z axes as subplots and saves the figures to the specified directory.
-
-    Args:
-        forces_pred: Predicted forces (Nx3 array).
-        forces_smooth: Smoothed predicted forces (Nx3 array).
-        forces_gt: Ground truth forces (Nx3 array).
-        avg_rmse: Average RMSE value for the run.
-        run: Run number.
-        pdf: Whether to save the plots as PDFs (if False, saves as PNG).
-        save_dir: Directory to save the plots (default is 'plots/').
-    """
-    assert forces_pred.shape == forces_gt.shape
-    assert forces_pred.shape[1] == 3
-
-    os.makedirs(save_dir, exist_ok=True)
-
-    time_axis = np.arange(forces_pred.shape[0])
-    axes = ["X", "Y", "Z"]
-
-    # Create a figure with three subplots for raw predictions
-    fig, axs = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
-    fig.suptitle(f"Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")
-
-    for i, ax_label in enumerate(axes):
-        axs[i].plot(time_axis, forces_pred[:, i], label='Predicted', linestyle='-', marker='')
-        axs[i].plot(time_axis, forces_gt[:, i], label='Ground Truth', linestyle='-', marker='')
-        axs[i].set_title(f"Force in {ax_label} Direction")
-        axs[i].set_ylabel('Force [N]')
-        axs[i].set_ylim(-1, 1)
-        axs[i].legend()
-
-    axs[-1].set_xlabel('Time')
-
-    save_path = os.path.join(save_dir, f"pred_run_{run}_forces.{'pdf' if pdf else 'png'}")
-    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust layout to fit the suptitle
-    plt.savefig(save_path)
-    plt.close()
-
-    # Create a second figure with three subplots for smoothed predictions
-    fig, axs = plt.subplots(3, 1, figsize=(8, 10), sharex=True)
-    fig.suptitle(f"Smoothed Force Predictions vs Ground Truth, Run {run}, Avg RMSE: {avg_rmse:.4f}")
-
-    for i, ax_label in enumerate(axes):
-        axs[i].plot(time_axis[:-1], forces_smooth[:, i], label='Smoothed Predictions', linestyle='-', marker='')
-        axs[i].plot(time_axis[:-1], forces_gt[:-1, i], label='Ground Truth', linestyle='-', marker='')
-        axs[i].set_title(f"Force in {ax_label} Direction")
-        axs[i].set_ylabel('Force [N]')
-        axs[i].set_ylim(-1, 1)
-        axs[i].legend()
-
-    axs[-1].set_xlabel('Time')
-
-    save_path = os.path.join(save_dir, f"pred_smooth_run_{run}_forces.{'pdf' if pdf else 'png'}")
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig(save_path)
-    plt.close()
 
 @torch.no_grad()
 def eval_model(model: VisionRobotNet,
@@ -185,9 +101,9 @@ def eval_model(model: VisionRobotNet,
     forces_pred = target_scaler.inverse_transform(forces_pred)
     forces_gt = forces_gt.cpu().detach().numpy()
     forces_gt = target_scaler.inverse_transform(forces_gt)
-    avg_rmse = np.sqrt(mean_squared_error(
-        forces_gt, forces_pred, multioutput='uniform_average'))
-    return forces_pred, forces_gt, avg_rmse
+    avg_rmse = sp_utils.rmse(forces_gt, forces_pred)
+    avg_nrmse = sp_utils.normalized_rmse(forces_gt, forces_pred)
+    return forces_pred, forces_gt, avg_rmse, avg_nrmse
 
 
 def eval() -> None:
@@ -210,7 +126,11 @@ def eval() -> None:
         config = util.get_transformer_config(args)
         model = RobotStateTransformer(config)
 
-    model.load_state_dict(torch.load(weights_path))
+    checkpoint = torch.load(weights_path, map_location=device)
+    if 'model_state_dict' in checkpoint:
+        model.load_state_dict(checkpoint['model_state_dict'])
+    else:
+        model.load_state_dict(checkpoint)
 
     model.to(device)
     model.eval()
@@ -247,22 +167,52 @@ def eval() -> None:
         dataset = SequentialDataset(robot_features_list=features,
                                     force_targets_list=targets,
                                     normalize_targets=True,
-                                    seq_length=constants.SEQ_LENGTH,
+                                    seq_length= args.seq_length,
                                     feature_scaler_path=feature_scaler_path,
                                     target_scaler_path=target_scaler_path)
 
     print(f"[INFO] Loaded Dataset with {len(dataset)} samples!")
     data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     target_scaler = joblib.load(target_scaler_path)
-    forces_pred, forces_gt, avg_rmse = eval_model(
+    forces_pred, forces_gt, avg_rmse, avg_nrmse = eval_model(
         model, data_loader, target_scaler, device, model_type=args.model_type)
-    forces_pred_smooth = moving_average(
+    forces_pred_smooth = sp_utils.moving_average(
         forces_pred, window_size=constants.MOVING_AVG_WINDOW_SIZE)
     save_predictions("predictions", forces_pred, forces_pred_smooth, forces_gt)
-    plot_forces(forces_pred, forces_pred_smooth,
-                forces_gt, avg_rmse, args.run, args.pdf,
-                f'plots/{weights_path.split("/")[-2]}')
+    crop_intervals = None if not args.draw_crop_intervals else constants.START_END_TIMES["force_policy"][args.run] 
+    
+    if args.plot_type == 'matplotlib':
+        sp_utils.plot_forces_matplotlib(forces_pred, forces_pred_smooth,
+                forces_gt, avg_rmse, avg_nrmse, args.run,
+                f'plots/{weights_path.split("/")[-3]}',
+                crop_intervals=crop_intervals,
+                loss_criterion=args.loss_criterion,
+                pdf=args.pdf)
+    elif args.plot_type == 'plotly':
+        sp_utils.plot_forces_plotly(forces_pred, forces_pred_smooth,
+                    forces_gt, avg_rmse, avg_nrmse, args.run,
+                    f'plots/{weights_path.split("/")[-3]}',
+                    crop_intervals=crop_intervals,
+                    loss_criterion=args.loss_criterion)
+    else:
+        print("[INFO] No plots will be generated.")
 
+    if args.analyze_results:
+
+        print("[INFO] Running run-wise analysis on the results...")
+        result_run = sp_utils.run_wise_analysis(forces_gt[:-1, :],
+                                                forces_pred_smooth,
+                                                args.run)
+        sp_utils.save_results_to_csv(result_run, args.run,
+                                 f'plots/{weights_path.split("/")[-3]}',
+                                 peak_wise=False)
+        
+        print("[INFO] Running peak-wise analysis on the results...")
+        result = sp_utils.peak_wise_analysis(forces_gt[:-1, :], 
+                                              forces_pred_smooth,
+                                              args.run)
+        sp_utils.save_results_to_csv(result, args.run, 
+                                 f'plots/{weights_path.split("/")[-3]}')
 
 if __name__ == "__main__":
     eval()

@@ -8,6 +8,7 @@ import joblib
 
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 import torch
 from torch.utils.data import DataLoader
@@ -70,9 +71,11 @@ def load_data(runs: dict[str, List[int]],
             if use_acceleration:
                 X_cols += constants.ACCELERATION_COLUMNS
 
+            crop_intervals = constants.START_END_TIMES[policy][run]
+
             if create_plots:
                 forces_arr = excel_df[constants.TARGET_COLUMNS].to_numpy()
-                plot_forces(forces_arr, run_nr=run, policy=policy, pdf=False)
+                plot_forces(forces_arr, run_nr=run, policy=policy, pdf=False, crop_intervals=crop_intervals)
 
             if crop_runs:
                 for times in constants.START_END_TIMES[policy][run]:
@@ -247,7 +250,7 @@ def prepare_kfold_datasets(args, run_nums, data_dir, sets):
     return fold_splits
 
 
-def prepare_standard_datasets(args, run_nums, data_dir, sets, feature_scaler_path: None, target_scaler_path: None):
+def prepare_standard_datasets(args, run_nums, data_dir, sets, feature_scaler_path: None, target_scaler_path: None, crop_runs: bool = False):
     """
     Prepare datasets for a standard train-test split.
     Returns a dictionary of DataLoaders.
@@ -260,7 +263,7 @@ def prepare_standard_datasets(args, run_nums, data_dir, sets, feature_scaler_pat
                                     no_force_policy_runs=run_nums[s][1],
                                     sequential=True,
                                     use_acceleration=args.use_acceleration,
-                                    crop_runs=False
+                                    crop_runs= crop_runs
                                 )
         assert isinstance(features, list)
         assert isinstance(targets, list)
@@ -313,23 +316,31 @@ def create_kfolds_weights_path(base_dir: str = "weights", current_fold: int = 0,
     return str(fold_weights_path)
 
 
-def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool):
+def plot_forces(forces: np.ndarray, run_nr: int, policy: str, pdf: bool, crop_intervals=None):
     assert forces.shape[1] == 3
     os.makedirs('plots', exist_ok=True)
+    
     time_axis = np.arange(forces.shape[0])
+    
+    plt.figure(figsize=(10, 5))
+    plt.plot(time_axis, forces[:, 0], label='x-axis', linestyle='-', marker='')
+    plt.plot(time_axis, forces[:, 1], label='y-axis', linestyle='-', marker='')
+    plt.plot(time_axis, forces[:, 2], label='z-axis', linestyle='-', marker='')
 
-    plt.figure()
-    plt.plot(time_axis, forces[:, 0],
-             label='x-axis', linestyle='-', marker='')
-    plt.plot(time_axis, forces[:, 1],
-             label='y-axis', linestyle='-', marker='')
-    plt.plot(time_axis, forces[:, 2],
-             label='z-axis', linestyle='-', marker='')
+    # Add vertical lines for crop timestamps
+    if crop_intervals:
+        for i, (start, end) in enumerate(crop_intervals):
+            end = end if end != -1 else forces.shape[0]
+            plt.axvline(x=start, color='r', linestyle='--', label="Crop Start" if i == 0 else "")
+            plt.axvline(x=end, color='g', linestyle='--', label="Crop End" if i == 0 else "")
+
     policy_name = "Force Policy" if policy == "force_policy" else "No Force Policy"
     plt.title(f"Example of Force Data for a single Policy Rollout")
     plt.xlabel('Time')
     plt.ylabel('Force [N]')
     plt.legend()
+    plt.grid(True)
+
     save_path = f"plots/rollout_{policy}_{run_nr}.{'pdf' if pdf else 'png'}"
     plt.savefig(save_path)
     plt.close()

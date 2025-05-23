@@ -39,6 +39,10 @@ def parse_cmd_line() -> argparse.Namespace:
                         help="Enable k-fold cross-validation")
     parser.add_argument("--k_folds", type=int, default=5,
                         help="Number of folds for k-fold cross-validation")
+    parser.add_argument("--crop_runs", action='store_true', default=False,
+                        help="Crop the runs to the start and end times specified in constants.py")
+    parser.add_argument("--loss_criterion", type=str, default="mse",
+                        help="Loss function to use: mse, rmse, l1, weighted_mse, mixed, custom")
 
     return parser.parse_args()
 
@@ -75,7 +79,7 @@ def train():
     args = parse_cmd_line()
     args.model = "transformer"
     args.use_pretrained = False
-    loss_criterion = "mse"
+    loss_criterion = args.loss_criterion
 
     print("Training Robot State Transformer Network")
 
@@ -103,7 +107,7 @@ def train():
         for fold in range(args.k_folds):
             wandb.init(
                 project="force-transformer",
-                group=f"{args.k_folds}_fold_seq_{args.seq_length}",
+                group=f"{args.k_folds}_fold_seq_{args.seq_length}_{args.loss_criterion}_{'cropped' if args.crop_runs else 'no_crop'}",
                 name=f"fold_{fold}_seq_{args.seq_length}",
                 config={
                     'architecture': 'state-transformer',
@@ -128,7 +132,7 @@ def train():
             feature_scaler_path = transformations_path + "/feature_scaler.joblib"
             target_scaler_path = transformations_path + "/target_scaler.joblib"
             kfold_dataloaders = util.prepare_standard_datasets(
-                args, fold_splits[fold], data_dir, sets, feature_scaler_path, target_scaler_path)
+                args, fold_splits[fold], data_dir, sets, feature_scaler_path, target_scaler_path, args.crop_runs)
 
             model = RobotStateTransformer(util.get_transformer_config(args))
             model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
@@ -167,7 +171,7 @@ def train():
         target_scaler_path = transformations_path + "/target_scaler.joblib"
         
         data_loaders = util.prepare_standard_datasets(
-            args, run_nums, data_dir, sets, feature_scaler_path, target_scaler_path)
+            args, run_nums, data_dir, sets, feature_scaler_path, target_scaler_path, args.crop_runs)
 
         model = RobotStateTransformer(util.get_transformer_config(args))
         model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))

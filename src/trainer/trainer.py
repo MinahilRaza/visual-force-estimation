@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from loss import RMSELoss
+from loss import RMSELoss, WeightedMSELoss, HuberLoss
 
 
 class LRSchedulerConfig(object):
@@ -44,11 +44,24 @@ class TrainerBase(ABC):
 
         assert isinstance(criterion, str), f"{criterion=}"
         self.criterion_name = criterion
-        if self.criterion_name == "mse":
+        print(f"Loss Criterion: {self.criterion_name}")
+        if self.criterion_name == "mse" or self.criterion_name == "dafoes":
             self.criterion = nn.MSELoss()
             self.criterion.to(device)
         elif self.criterion_name == "rmse":
             self.criterion = RMSELoss()
+            self.criterion.to(device)
+        elif self.criterion_name == "l1":
+            self.criterion = nn.L1Loss()
+            self.criterion.to(device)
+        elif self.criterion_name == "weighted_mse":
+            # give a different weight to zero and non-zero values
+            self.criterion = WeightedMSELoss(w1=0.4, w2=0.6)
+            self.criterion.to(device)
+        elif self.criterion_name == "huber":
+            # Note: Huber loss is a combination of L1 and L2 loss
+            # It is less sensitive to outliers in data than squared error loss
+            self.criterion = HuberLoss()
             self.criterion.to(device)
         elif self.criterion_name == "custom":
             self.criterion = None
@@ -139,13 +152,15 @@ class TrainerBase(ABC):
 
                 if phase == "test" and avg_acc_epoch.item() < best_acc:
                     best_acc = avg_acc_epoch.item()
-                    torch.save(self.model.state_dict(), self.save_path_best)
+                    torch.save({'model_state_dict':self.model.state_dict(),
+                                'optimizer_state_dict':self.optimizer.state_dict()},
+                               self.save_path_best)
                     print(f"Saved new best model with \
                         RMSE:{round(avg_acc_epoch.item(), 4)}")
 
                     # Save model weights
                     model_artifact = wandb.Artifact(
-                        "model_weights", type="model")
+                        "model_checkpoint", type="model")
                     model_artifact.add_file(self.save_path_best)
                     wandb.log_artifact(model_artifact)
 
@@ -158,7 +173,9 @@ class TrainerBase(ABC):
             print(f"Train Loss: {loss_phase['train'].item():.4f}\t \
                 Test Loss: {loss_phase['test'].item():.4f} Test RMSE: {acc_phase['test'].item():.4f}")
         self.best_test_acc = best_acc
-        torch.save(self.model.state_dict(), self.save_path_last)
+        torch.save({'model_state_dict':self.model.state_dict(),
+                    'optimizer_state_dict':self.optimizer.state_dict()},
+                    self.save_path_last)
         self.save_logs(epoch_logs, best_acc)
         self.writer.flush()
 
@@ -228,5 +245,9 @@ class TransformerTrainer(TrainerBase):
         out = self.model(robot_state)[:, -1, :]
 
         loss: torch.Tensor = self.criterion(out, target)
+        
+        #l1_norm: torch.Tensor = sum(p.abs().sum() for p in self.model.parameters())
+        #loss += 0.0001 * l1_norm 
+        
         acc: torch.Tensor = self.acc_module(out, target)
         return out, loss, acc
