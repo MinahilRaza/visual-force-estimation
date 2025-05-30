@@ -9,12 +9,10 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
 
 import torch
-from torchvision import transforms
 from torch.utils.data import DataLoader
 
 from models.vision_robot_net import VisionRobotNet
 from models.robot_state_transformer import RobotStateTransformer
-from transforms import CropBottom
 from dataset import VisionRobotDataset, SequentialDataset
 import constants
 import util
@@ -26,8 +24,6 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("-w", "--weights", required=True)
     parser.add_argument("-r", "--run", required=True, type=int)
     parser.add_argument("-m", "--model", required=True, type=str)
-    parser.add_argument("--plot_type", choices=['plotly', 'matplotlib', 'none'], default='none',
-                        help='Type of plot to generate: plotly, matplotlib or none')
     parser.add_argument("--pdf", action='store_true', default=False,
                         help='stores the plots as pdf instead of png')
     parser.add_argument('--use_acceleration',
@@ -43,8 +39,6 @@ def parse_cmd_line() -> argparse.Namespace:
                         help="Draw the crop intervals on the plots")
     parser.add_argument("--loss_criterion", type=str, default="mse",
                         help="Loss function to use: mse, rmse, l1, weighted_mse, mixed, custom")
-    parser.add_argument("--analyze_results", action='store_true', default=True,    
-                        help="Run analysis on the results, e.g. run-wise or peak-wise analysis")
     return parser.parse_args()
 
 
@@ -126,7 +120,7 @@ def eval() -> None:
         config = util.get_transformer_config(args)
         model = RobotStateTransformer(config)
 
-    checkpoint = torch.load(weights_path, map_location=device)
+    checkpoint = torch.load(weights_path)
     if 'model_state_dict' in checkpoint:
         model.load_state_dict(checkpoint['model_state_dict'])
     else:
@@ -180,39 +174,24 @@ def eval() -> None:
         forces_pred, window_size=constants.MOVING_AVG_WINDOW_SIZE)
     save_predictions("predictions", forces_pred, forces_pred_smooth, forces_gt)
     crop_intervals = None if not args.draw_crop_intervals else constants.START_END_TIMES["force_policy"][args.run] 
+    sp_utils.plot_forces_plotly(forces_pred, forces_pred_smooth,
+                 forces_gt, avg_rmse, avg_nrmse, args.run,
+                 f'plots/{weights_path.split("/")[-3]}',
+                 crop_intervals=crop_intervals,
+                 loss_criterion=args.loss_criterion)
+
+    result = sp_utils.peak_wise_analysis(forces_gt[:-1, :], 
+                                          forces_pred_smooth,
+                                          args.run)
+    sp_utils.save_results_to_csv(result, args.run, 
+                             f'plots/{weights_path.split("/")[-3]}')
     
-    if args.plot_type == 'matplotlib':
-        sp_utils.plot_forces_matplotlib(forces_pred, forces_pred_smooth,
-                forces_gt, avg_rmse, avg_nrmse, args.run,
-                f'plots/{weights_path.split("/")[-3]}',
-                crop_intervals=crop_intervals,
-                loss_criterion=args.loss_criterion,
-                pdf=args.pdf)
-    elif args.plot_type == 'plotly':
-        sp_utils.plot_forces_plotly(forces_pred, forces_pred_smooth,
-                    forces_gt, avg_rmse, avg_nrmse, args.run,
-                    f'plots/{weights_path.split("/")[-3]}',
-                    crop_intervals=crop_intervals,
-                    loss_criterion=args.loss_criterion)
-    else:
-        print("[INFO] No plots will be generated.")
-
-    if args.analyze_results:
-
-        print("[INFO] Running run-wise analysis on the results...")
-        result_run = sp_utils.run_wise_analysis(forces_gt[:-1, :],
-                                                forces_pred_smooth,
-                                                args.run)
-        sp_utils.save_results_to_csv(result_run, args.run,
-                                 f'plots/{weights_path.split("/")[-3]}',
-                                 peak_wise=False)
-        
-        print("[INFO] Running peak-wise analysis on the results...")
-        result = sp_utils.peak_wise_analysis(forces_gt[:-1, :], 
-                                              forces_pred_smooth,
-                                              args.run)
-        sp_utils.save_results_to_csv(result, args.run, 
-                                 f'plots/{weights_path.split("/")[-3]}')
+    result_run = sp_utils.run_wise_analysis(forces_gt[:-1, :],
+                                            forces_pred_smooth,
+                                            args.run)
+    sp_utils.save_results_to_csv(result_run, args.run,
+                             f'plots/{weights_path.split("/")[-3]}',
+                             peak_wise=False)
 
 if __name__ == "__main__":
     eval()

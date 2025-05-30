@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import torch
 import numpy as np
 import joblib
@@ -262,3 +262,121 @@ class VisionRobotDataset(Dataset):
             img_right = self.transforms(img_right)
 
         return {"img_left": img_left, "img_right": img_right, "features": self.robot_features[idx], "target": self.force_targets[idx]}
+
+class SequentialVisionRobotDataset(Dataset):
+    """
+    Dataset class to handle sequences of left and right images, robot features, and force targets.
+    This is used for training models that require temporal context, such as transformers.
+    """
+
+    def __init__(
+        self,
+        *,
+        robot_features: np.ndarray,        # Robot features defined in constants.py (N, S)
+        force_targets: np.ndarray,         # 3 dimentional forces (N, 3)
+        img_left_paths: List[str],
+        img_right_paths: List[str],
+        path: str,
+        img_transforms: Optional[transforms.Compose] = None,
+        seq_length: int = 1,
+        feature_scaler_path: Optional[str] = None,
+        target_scaler_path: Optional[str] = None) -> None:
+        super().__init__()
+        assert len(robot_features) == len(img_right_paths) == len(force_targets), "sample mismatch"
+        self.seq_length = seq_length
+        self.root = Path(path)
+        self.transforms = img_transforms
+
+        if feature_scaler_path and Path(feature_scaler_path).is_file():
+            fscaler: StandardScaler = joblib.load(feature_scaler_path)
+            self.robot_features = torch.from_numpy(fscaler.transform(robot_features)).float()
+        else:
+            self.robot_features = torch.from_numpy(robot_features).float()
+
+        if target_scaler_path and Path(target_scaler_path).is_file():
+            tscaler: MinMaxScaler = joblib.load(target_scaler_path)
+            self.force_targets = torch.from_numpy(tscaler.transform(force_targets)).float()
+        else:
+            self.force_targets = torch.from_numpy(force_targets).float()
+
+        self.img_left_paths = img_left_paths
+        self.img_right_paths = img_right_paths
+        self.N = len(img_right_paths)
+
+    def __len__(self) -> int: 
+        return self.N - self.seq_length + 1 if self.seq_length > 1 else self.N
+
+    def _load_pair(self, idx: int) -> Tuple[Image.Image, Image.Image]:
+        l = Image.open(self.root / self.img_left_paths[idx]).convert("RGB")
+        r = Image.open(self.root / self.img_right_paths[idx]).convert("RGB")
+        return l, r
+    
+    def _load_left(self, idx: int) -> Image.Image:
+        img = Image.open(self.root / self.img_left_paths[idx]).convert("RGB")
+        return img
+    
+    def _load_right(self, idx: int) -> Image.Image:
+        img = Image.open(self.root / self.img_right_paths[idx]).convert("RGB")
+        return img
+
+    def __getitem__(self, idx):
+        if self.seq_length == 1:
+            img_l, img_r = self._load_pair(idx)
+            if self.transforms:
+                img_l, img_r = self.transforms(img_l), self.transforms(img_r)
+            return {
+                "img_left": img_l,
+                "img_right": img_r,
+                "features": self.robot_features[idx],
+                "target": self.force_targets[idx],
+            }
+
+        # Load a sequence window with T frames)
+        idxs = range(idx, idx + self.seq_length)
+
+        if len(self.img_left_paths) > 0:
+            imgs_l = [self._load_left(i) for i in idxs]
+            if self.transforms:
+                imgs_l = [self.transforms(im) for im in imgs_l]
+            imgs_l_tensor = torch.stack(imgs_l) # (T, C, H, W)
+
+        else:
+            imgs_l_tensor = None
+
+        if len(self.img_right_paths) > 0:
+            imgs_r = [self._load_right(i) for i in idxs]
+            if self.transforms:
+                imgs_r = [self.transforms(im) for im in imgs_r]
+            imgs_r_tensor = torch.stack(imgs_r) # (T, C, H, W)
+        else:
+            imgs_r_tensor = None
+
+        return {
+            "img_left": imgs_l_tensor,
+            "img_right": imgs_r_tensor,
+            "features": self.robot_features[idx : idx + self.seq_length],   # (T, S)
+            "target": self.force_targets[idx : idx + self.seq_length],      # (T, 3)
+        }
+
+def custom_collate_fn(batch):
+    """
+    Stacks dict fields to a single batch.
+    Works for both single‑frame and sequence inputs.
+
+    Returns
+    -------
+    dict with keys:
+        img_right  – (B, T, C, H, W) or (B, C, H, W)
+        forces     – (B, 3)   (last step if sequence)
+        robot_state– (B, T, S) or (B, S)
+    """
+    imgs = torch.stack([b["img_right"] for b in batch])
+
+    forces_lst = [b["target"] for b in batch]          # (T,3) or (3,)
+    if forces_lst[0].dim() == 2:                       # sequence → pick last
+        forces = torch.stack([f[-1] for f in forces_lst])
+    else:
+        forces = torch.stack(forces_lst)
+
+    robot_state = torch.stack([b["features"] for b in batch])
+    return {"img_right": imgs, "forces": forces, "robot_state": robot_state}

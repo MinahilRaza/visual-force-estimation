@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from loss import RMSELoss, WeightedMSELoss, HuberLoss
+from loss import RMSELoss, WeightedMSELoss, HuberLoss, WeightedHuberLoss
 
 
 class LRSchedulerConfig(object):
@@ -62,6 +62,10 @@ class TrainerBase(ABC):
             # Note: Huber loss is a combination of L1 and L2 loss
             # It is less sensitive to outliers in data than squared error loss
             self.criterion = HuberLoss()
+            self.criterion.to(device)
+        elif self.criterion_name == "weighted_huber":
+            # Weighted Huber loss with a different weight for the linear region
+            self.criterion = WeightedHuberLoss(delta=1.0, l1_weight=2.0)
             self.criterion.to(device)
         elif self.criterion_name == "custom":
             self.criterion = None

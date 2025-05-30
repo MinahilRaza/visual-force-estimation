@@ -1,11 +1,9 @@
 import torch
 import argparse
 from sklearn.model_selection import KFold
-from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from models.robot_state_transformer import RobotStateTransformer
 from trainer.trainer import TransformerTrainer, LRSchedulerConfig
-from dataset import SequentialDataset
 
 import util
 import constants
@@ -42,7 +40,7 @@ def parse_cmd_line() -> argparse.Namespace:
     parser.add_argument("--crop_runs", action='store_true', default=False,
                         help="Crop the runs to the start and end times specified in constants.py")
     parser.add_argument("--loss_criterion", type=str, default="mse",
-                        help="Loss function to use: mse, rmse, l1, weighted_mse, mixed, custom")
+                        help="Loss function to use: mse, rmse, l1, weighted_mse, mixed, huber, weighted_huber, custom")
 
     return parser.parse_args()
 

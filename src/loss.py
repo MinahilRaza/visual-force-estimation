@@ -27,6 +27,22 @@ class HuberLoss(nn.Module):
 
         loss = 0.5 * quadratic ** 2 + self.delta * linear
         return loss.mean()
+
+class WeightedHuberLoss(nn.Module):
+    def __init__(self, delta=1.0, l1_weight=2.0):
+        super().__init__()
+        self.delta = delta
+        self.l1_weight = l1_weight  # Scale for linear (L1-like) region
+
+    def forward(self, y_pred, y_true):
+        error = y_true - y_pred
+        abs_error = torch.abs(error)
+        is_small_error = abs_error <= self.delta
+
+        squared_loss = 0.5 * error**2
+        linear_loss = self.l1_weight * self.delta * (abs_error - 0.5 * self.delta)
+
+        return torch.where(is_small_error, squared_loss, linear_loss).mean()
     
 class WeightedMSELoss(nn.Module):
     def __init__(self, w1=1.0, w2=1.0):

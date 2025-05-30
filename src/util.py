@@ -14,7 +14,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from sklearn.model_selection import KFold
-from dataset import VisionRobotDataset, SequentialDataset
+from dataset import VisionRobotDataset, SequentialDataset, SequentialVisionRobotDataset
 from models.vision_robot_net import VRNConfig, STATE_MAPPING
 from models.robot_state_transformer import TransformerConfig, EncoderState
 import constants
@@ -217,14 +217,14 @@ def apply_scaling_to_datasets(train_dataset: VisionRobotDataset,
         joblib.dump(target_scaler, constants.TARGET_SCALER_FN)
 
 
-def prepare_kfold_datasets(args, run_nums, data_dir, sets):
+def prepare_kfold_datasets(args, run_nums, data_dir, sets, seed=42):
     """
     Prepare datasets for k-fold cross-validation.
     Returns a list of fold-specific data splits.
     """
-    kf1 = KFold(n_splits=args.k_folds, shuffle=True, random_state=42)
+    kf1 = KFold(n_splits=args.k_folds, shuffle=True, random_state=seed)
     kf2 = KFold(n_splits=args.k_folds, shuffle=True,
-                random_state=42) if run_nums["train"][1] else None
+                random_state=seed) if run_nums["train"][1] else None
 
     fold_splits = []
     for fold_idx, (train_indices1, val_indices1) in enumerate(kf1.split(run_nums["train"][0]), 1):
@@ -278,6 +278,37 @@ def prepare_standard_datasets(args, run_nums, data_dir, sets, feature_scaler_pat
                     seq_length=args.seq_length,
                     **dataset_kwargs)
         print(f"[INFO] Loaded Sequential Dataset {s} with {len(dataset)} samples!")
+
+        data_loaders[s] = DataLoader(
+            dataset, batch_size=args.batch_size, shuffle=(s == "train"), drop_last=True
+        )
+    return data_loaders
+
+def prepare_standard_datasets_vision_robot(args, run_nums, data_dir, sets, feature_scaler_path: None, target_scaler_path: None, use_left = True, use_right = True):
+    """
+    Prepare datasets for a standard train-test split for SequentialVisionRobotDataset.
+    Returns a dictionary of DataLoaders.
+    """
+    data_loaders = {}
+    for s in sets:
+        all_X, all_y, all_img_left_paths, all_img_right_paths = load_dataset(
+            path=data_dir,
+            force_policy_runs=run_nums[s][0],
+            no_force_policy_runs=run_nums[s][1],
+            sequential=False,
+            use_acceleration=args.use_acceleration
+        )
+
+        dataset = SequentialVisionRobotDataset(
+            robot_features=all_X,
+            force_targets=all_y,
+            img_left_paths=all_img_left_paths if use_left else None,
+            img_right_paths=all_img_right_paths if use_right else None,
+            img_transforms=constants.RES_NET_TEST_TRANSFORM if s == "test" else constants.RES_NET_TRAIN_TRANSFORM,
+            feature_scaler_path=feature_scaler_path if feature_scaler_path else constants.FEATURE_SCALER_FN,
+            target_scaler_path=target_scaler_path if target_scaler_path else constants.TARGET_SCALER_FN
+        )
+        print(f"[INFO] Loaded VisionRobotDataset {s} with {len(dataset)} samples!")
 
         data_loaders[s] = DataLoader(
             dataset, batch_size=args.batch_size, shuffle=(s == "train"), drop_last=True
