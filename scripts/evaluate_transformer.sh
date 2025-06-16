@@ -18,19 +18,19 @@ fi
 
 seq_length=10
 epochs=150
-dataset="reduced" # Change to "full" for the full dataset
+dataset="full" 
 
 # Define the validation runs for each fold
 declare -A fold_runs
 
-if dataset == "full"; then
+if [ "$dataset" == "full" ]; then
     # For the full dataset, use the following runs
-    fold_runs[0]="1 2 3 4 5 6 7 8 9 10"
-    fold_runs[1]="11 12 13 14 15 16 17 18"
-    fold_runs[2]="19 20 21 22 23 24 25 26"
-    fold_runs[3]="27 28 29 30 31 32 33 34"
-    fold_runs[4]="35 36 37 38 39 40"
-    fold_runs[5]="41 42 43 44 45"
+    fold_runs[0]="6 10 17 23 30 31 48"
+    fold_runs[1]="8 11 16 21 32 35 37"
+    fold_runs[2]="1 19 20 28 41 43 44"
+    fold_runs[3]="2 3 7 15 25 38 49"
+    fold_runs[4]="4 14 27 40 42 46 50"
+    fold_runs[5]="9 18 22 24 26 34 47"
 
     loss_criterion=("l1" "huber" "mse")
 else

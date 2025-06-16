@@ -47,8 +47,8 @@ def compute_cross_correlation_lag(gt_axis, pred_axis):
     pred_axis_norm = pred_axis / np.linalg.norm(pred_axis)
     # compute the cross-correlation
     corr = correlate(pred_axis_norm, gt_axis_norm, mode='full')
-    lag = corr.argmax() - (len(gt_axis) - 1)
-    corr_max = np.max(corr)
+    lag = np.abs(corr).argmax() - (len(gt_axis) - 1)
+    corr_max = corr[np.abs(corr).argmax()]
     return corr_max, lag
 
 def energy(signal):
@@ -154,16 +154,31 @@ def plotly_peaks_and_fwhm(gt_axis, pred_axis, matched, axis_name="X", sample_rat
                       height=500)
     fig.show()
 
-def compare_highest_peaks(gt_signal, pred_signal):
-    # Find the strongest (most extreme) peak in terms of absolute value
-    gt_peak_val = np.max(np.abs(gt_signal))
-    pred_peak_val = np.max(np.abs(pred_signal))
+def compare_highest_peaks(gt_signal, pred_signal, lag=0):
+    """Compare the highest peaks of the predicted signal with the ground truth signal.
+    Args:
+        gt_signal (np.ndarray or list): Ground truth signal data.
+        pred_signal (np.ndarray or list): Predicted signal data.
+        lag (int): Lag to apply to the predicted signal.
+    Returns:
+        tuple: A tuple containing the difference in peak heights and the normalized difference.
+    """
+    # Find the strongest (most extreme) peak in terms of absolute value and its index in the ground truth signal
+    gt_peak_idx = np.argmax(np.abs(gt_signal))
+    gt_peak_val = gt_signal[gt_peak_idx]
+    # Get the corresponding time value in the predicted signal considering the lag
+    pred_peak_idx = gt_peak_idx + lag
+    # Ensure the index is within bounds
+    if pred_peak_idx < 0 or pred_peak_idx >= len(pred_signal):
+        pred_peak_idx = np.argmax(np.abs(pred_signal))  # Fallback to max peak if out of bounds
+    
+    pred_peak_val = pred_signal[pred_peak_idx]
 
     # Compare predicted vs. ground truth peak
     diff = pred_peak_val - gt_peak_val
 
     # Normalized overshoot based on GT peak magnitude
-    normalized_diff = diff / gt_peak_val if gt_peak_val != 0 else np.nan
+    normalized_diff = diff / gt_peak_val if np.abs(gt_peak_val) > 0.0001 else 0
 
     return diff, normalized_diff
 
@@ -194,7 +209,7 @@ def peak_wise_analysis(gt, pred, run=1):
             energy_diff = energy(pred_axis) - energy(gt_axis)
             energy_diff_norm = energy_diff / energy(gt_axis) if energy(gt_axis) != 0 else 0
 
-            peak_height_diff, peak_height_diff_norm = compare_highest_peaks(gt_axis, pred_axis)
+            peak_height_diff, peak_height_diff_norm = compare_highest_peaks(gt_axis, pred_axis, lag)
 
             results[axis] = { 
                 'CrossCorr Lag': lag,
@@ -416,7 +431,6 @@ def plot_forces_matplotlib(forces_pred: np.ndarray,
         axs[i].set_title(f"Force in {ax_label} Direction, Avg RMSE: {ax_rmse:.4f}, NRMSE: {ax_nrmse:.4f}")
         axs[i].set_ylabel('Force [N]')
         axs[i].grid()
-        #axs[i].set_ylim(-6, 2)
         axs[i].legend()
 
         # Add vertical lines for crop timestamps
@@ -445,7 +459,6 @@ def plot_forces_matplotlib(forces_pred: np.ndarray,
         axs[i].set_title(f"Force in {ax_label} Direction, Avg RMSE: {ax_rmse:.4f}, NRMSE: {ax_nrmse:.4f}")
         axs[i].set_ylabel('Force [N]')
         axs[i].grid()
-        # axs[i].set_ylim(-1, 1)
         axs[i].legend()
 
         # Add vertical lines for crop timestamps

@@ -25,7 +25,18 @@ class TransformerConfig:
     encoder_state: EncoderState
     max_seq_length: int = 512
 
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model, max_len=100):
+        super().__init__()
+        self.pos_embedding = nn.Embedding(max_len, d_model)
 
+    def forward(self, x):
+        # x: [batch_size, seq_len, d_model]
+        seq_len = x.size(1)
+        positions = torch.arange(seq_len, device=x.device).unsqueeze(0)  # [1, seq_len]
+        pos_embed = self.pos_embedding(positions)  # [1, seq_len, d_model]
+        return x + pos_embed
+    
 class RobotStateTransformer(nn.Module):
     def __init__(self, config: TransformerConfig, seed: int = 42) -> None:
         super().__init__()
@@ -34,6 +45,8 @@ class RobotStateTransformer(nn.Module):
         self.max_seq_length = config.max_seq_length
         self.encoder_state = config.encoder_state
         self.config = config
+
+        self.pos_encoder = PositionalEncoding(d_model=config.hidden_layers[-1], max_len=100)
 
         if self.encoder_state == EncoderState.LINEAR:
             self.robot_encoder = LinearEncoder(
@@ -51,17 +64,21 @@ class RobotStateTransformer(nn.Module):
                 dropout_rate=config.dropout_rate
             )
 
-        self.transformer = nn.Transformer(
+        encoder_layer = nn.TransformerEncoderLayer(
             d_model=config.hidden_layers[-1],
             nhead=config.num_heads,
-            num_encoder_layers=config.num_encoder_layers,
-            num_decoder_layers=config.num_decoder_layers, # might not be needed
-            dim_feedforward=config.dim_feedforward, # 4 times attention dimension D (encoder output)
+            dim_feedforward=config.dim_feedforward,
             dropout=config.dropout_rate,
-            norm_first = False # True
+            activation='relu',
+            norm_first=True
+        )
+        self.transformer = nn.TransformerEncoder(
+            encoder_layer,
+            num_layers=config.num_encoder_layers
         )
 
-        self.output_layer = nn.Linear(config.hidden_layers[-1], 3)
+        self.intermediate_layer = nn.Linear(config.hidden_layers[-1], config.hidden_layers[-1]*2)
+        self.output_layer = nn.Linear(config.hidden_layers[-1]*2, 3)  # Output 3 features
         self._initialize_weights(seed)
 
     def _initialize_weights(self, seed: int):
@@ -90,8 +107,10 @@ class RobotStateTransformer(nn.Module):
             robot_state = robot_state.view(-1, self.num_robot_features)
         encoded_features = self.robot_encoder(robot_state)
         if self.encoder_state == EncoderState.LINEAR:
-            encoded_features = encoded_features.view(
-                batch_size, seq_length, -1)
+            encoded_features = encoded_features.view(batch_size, seq_length, -1)
+
+        # Add positional encoding
+        encoded_features = self.pos_encoder(encoded_features)
 
         # Transformer expects inputs in (seq_length, batch_size, features)
         if self.encoder_state == EncoderState.LINEAR:
@@ -100,7 +119,9 @@ class RobotStateTransformer(nn.Module):
             encoded_features, encoded_features)
 
         # Output layer
-        output = self.output_layer(transformer_output)
+        output = self.intermediate_layer(transformer_output)
+        output = F.relu(output)
+        output = self.output_layer(output)
         if self.encoder_state == EncoderState.LINEAR:
             output = output.permute(1, 0, 2)  # [batch_size, seq_length, 3]
 
